@@ -46,26 +46,28 @@ class CSide(object):
         
     def __repr__(self):
         result = []
-        if not self.is_back_side:
+        if True: #not self.is_back_side:
             result.append([self.corners[0], self.edges[0], self.corners[1]])
             result.append([self.edges[3], self.center, self.edges[1]])
             result.append([self.corners[3], self.edges[2], self.corners[2]])
+        #'''
         else:
             result.append([self.corners[1], self.edges[0], self.corners[0]])
             result.append([self.edges[1], self.center, self.edges[3]])
             result.append([self.corners[2], self.edges[2], self.corners[3]])
+        #'''
             
         return '\n'.join([' '.join(color_to_text(x) for x in rrr) for rrr in result])
         
     def get_side(self, side):
         
-        '''
+        #'''
         if self.is_back_side:
             if side == 'L':
                 side = 'R'
             elif side == 'R':
                 side = 'L'
-        '''
+        #'''
         
         if side == 'U':
             return [self.corners[0], self.edges[0], self.corners[1]]
@@ -79,13 +81,13 @@ class CSide(object):
         assert False
         
     def update_side(self, side, new_vals):
-        '''
+        #'''
         if self.is_back_side:
             if side == 'L':
                 side = 'R'
             elif side == 'R':
                 side = 'L'
-        '''
+        #'''
         if side == 'U':
             [self.corners[0], self.edges[0], self.corners[1]] = new_vals
         elif side == 'D':
@@ -99,6 +101,8 @@ class CSide(object):
         
         
     def rotate(self, is_clockwise):
+        #if self.is_back_side:
+            #is_clockwise = not is_clockwise
         if is_clockwise:
             x = self.edges.pop(-1)
             self.edges.insert(0, x)
@@ -140,7 +144,7 @@ class CCube(object):
         
     def rotate(self, action):
         vals = action.split(' ')
-        print vals
+        print ' '.join(vals)
         for action in vals:
             repeat_me = 1
             if action[-1] == '2':
@@ -154,6 +158,7 @@ class CCube(object):
     def translate_rotate_action(self, action, flow):
         if action =='F':
             reverse_hash = {'U': 'D', 'D': 'U', 'L': 'R', 'R': 'L'}
+            #reverse_hash = {'U': 'U', 'D': 'D', 'L': 'L', 'R': 'R'}
             return reverse_hash[flow]
         elif action == 'B':
             reverse_hash = {'U': 'U', 'D': 'D', 'L': 'L', 'R': 'R'}
@@ -190,10 +195,22 @@ class CCube(object):
         new_vals = self.sides[self.sides_hash[flow[0]]].get_side(self.translate_rotate_action(action, flow[0]))
         for i in xrange(len(flow) - 1):
             old_vals = self.sides[self.sides_hash[flow[i+1]]].get_side(self.translate_rotate_action(action, flow[i+1]))
-            if action == 'B' and i in [0, 2]:
+            if action == 'B' and flow[i+1] in ['U', 'D']:
                 new_vals = new_vals[::-1]
-            if action in ['D', 'U'] and flow[i+1] in ['B']:
+
+            #print '%s: %s %s' % (flow[i+1], action, ' '.join([color_to_text(x) for x in new_vals]))
+            if action in ['R', 'L'] and flow[i+1] in ['B']:
                 new_vals = new_vals[::-1]
+                #print 1
+            if action in ['R', 'L'] and flow[i] in ['B']:
+                #print 2
+                new_vals = new_vals[::-1]
+            '''
+            if action in ['D', 'U', 'R', 'L'] and flow[i+1] in ['B']:
+                print 1
+                print ' '.join([color_to_text(x) for x in new_vals])
+                new_vals = new_vals[::-1]
+            #'''
             self.sides[self.sides_hash[flow[i+1]]].update_side(self.translate_rotate_action(action, flow[i+1]), new_vals)
             new_vals = old_vals
             
@@ -234,11 +251,14 @@ class CCube(object):
 
 cube = CCube()
 
-#U B2 U B2 U B' U' R' U R B' U' B2
+            #L2 U' L2 U L R' F' L2 F L R
 
+#print cube
+cube.rotate("R2 U R' B' R B2 U' B D2 F L2 F' D2 B2 R2")
 print cube
-cube.rotate("U B2 U B2")
-print cube
+
+#cube.rotate("F'")
+#print cube
 
 
 
