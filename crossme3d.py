@@ -34,7 +34,7 @@ class CLink(object):
 
 class CSide(object):
 
-    is_debug_mode = True
+    is_debug_mode = False
     
     '''
       U U U
@@ -83,7 +83,6 @@ class CSide(object):
 
         prev_stickers = self.stickers
         inverse_new_pos = CSide.get_inverse_array(new_array_pos)
-        print inverse_new_pos
         self.stickers = []
         for pos in new_array_pos:
             self.stickers.append(prev_stickers[pos])
@@ -94,7 +93,6 @@ class CSide(object):
             new_link = self.linked_stickers[inverse_new_pos[i]]
             assert len(prev_link) == len(new_link)
             
-            print len(prev_link)
             for j in xrange(len(prev_link)):
                 plink = prev_link[len(prev_link)-1-j]
                 nlink = new_link[j]
@@ -107,7 +105,6 @@ class CSide(object):
                 
                 old_stickers[nlink.get_unique()] = old_sticker_value
                 
-                print '%s,%s' % (old_sticker_value, new_sticker_value)
                 nlink.connected_side.stickers[nlink.sticker_index] = new_sticker_value
             
     @staticmethod
@@ -140,17 +137,21 @@ class CCube(object):
         
     def init_linked_stickers(self):
     
+        back_side = self.sides[self.sides_hash['B']]
+        left_side = self.sides[self.sides_hash['L']]
+        up_side = self.sides[self.sides_hash['U']]
+        right_side = self.sides[self.sides_hash['R']]
+        down_side = self.sides[self.sides_hash['D']]
+
         #'''
         self.link_up_down('F', 'D')
-        self.link_up_down('D', 'B')
-        self.link_up_down('B', 'U')
         self.link_up_down('U', 'F')
-        
-        '''
-        self.link_up_down('U', 'R')
-        self.link_up_down('R', 'D')
-        self.link_up_down('D', 'L')
-        self.link_up_down('L', 'U')
+        for i in xrange(3):
+            up_side.linked_stickers[0 + i].append(CLink(back_side, 2 - i))
+            back_side.linked_stickers[2 - i].append(CLink(up_side, 0 + i))
+
+            back_side.linked_stickers[8 - i].append(CLink(down_side, 6 + i))
+            down_side.linked_stickers[6 + i].append(CLink(back_side, 8 - i))
         #'''
         
         #'''
@@ -159,15 +160,42 @@ class CCube(object):
         self.link_left_right('R', 'B')
         self.link_left_right('B', 'L')
         #'''
-        
-        '''
-        self.link_left_right('U', 'R')
-        self.link_left_right('R', 'D')
-        self.link_left_right('D', 'L')
-        self.link_left_right('L', 'U')
+
+        #'''
+        for i in xrange(3):
+            left_side.linked_stickers[0 + i].append(CLink(up_side, 0 + i*3))
+            up_side.linked_stickers[0 + i*3].append(CLink(left_side, 0 + i))
+
+            up_side.linked_stickers[2 + i*3].append(CLink(right_side, 2-  i))
+            right_side.linked_stickers[2 - i].append(CLink(up_side, 2 + i*3))
+
+            right_side.linked_stickers[6 + i].append(CLink(down_side, 2 + i*3))
+            down_side.linked_stickers[2 + i*3].append(CLink(right_side, 6 + i))
+
+            down_side.linked_stickers[0 + i*3].append(CLink(left_side, 8 - i))
+            left_side.linked_stickers[8 - i].append(CLink(down_side, 0 + i*3))
         #'''
         
-        pass
+        self.verify_links()
+        
+    def verify_links(self):
+        '''
+        veirfy_dict = {}
+        for j in xrange(6):
+            cside = self.sides[j]
+            for i in xrange(len(cside.linked_stickers)):
+                linked = cside.linked_stickers[i]
+                veirfy_dict[cside.get_sticker_unique(i)] = []
+                for ll in linked:
+                    veirfy_dict[cside.get_sticker_unique(i)].append(ll.get_unique())
+        
+        for k in veirfy_dict.keys():
+            for l in veirfy_dict[k]:
+                if not k in veirfy_dict[l]:
+                    print '%s:%s' % (k, veirfy_dict[k])
+                    print '%s:%s' % (l, veirfy_dict[l])
+                    print ''
+        '''
         
     def link_up_down(self, up, down):
         
@@ -177,7 +205,8 @@ class CCube(object):
         for i in xrange(CSide.cube_size):
             down_side.linked_stickers[0 + i].append(CLink(up_side, 6 + i))
             up_side.linked_stickers[6 + i].append(CLink(down_side, 0 + i))
-
+                
+                
     def link_left_right(self, left, right):
 
         left_side = self.sides[self.sides_hash[left]]
@@ -186,9 +215,9 @@ class CCube(object):
         for i in xrange(CSide.cube_size):
             left_side.linked_stickers[2 + i*3].append(CLink(right_side, 0 + i*3))
             right_side.linked_stickers[0 + i*3].append(CLink(left_side, 2 + i*3))
-        
+
     def rotate(self, action):
-            vals = action.split(' ')
+            vals = action.strip().split(' ')
             print ' '.join(vals)
             for action in vals:
                 repeat_me = 1
@@ -240,25 +269,27 @@ class CCube(object):
             result.append(' '* (len(v) + 3) + v)
 
         return '\n'.join(result)
+        
+    def print_all_links(self, side_id = -1):
+        for j in xrange(6):
+            if side_id != -1 and side_id != j:
+                continue
+            print j
+            cside = cube.sides[j]
+            for i in xrange(len(cside.linked_stickers)):
+                linked = cside.linked_stickers[i]
+                print '%s: %s' % (color_to_text(cside.stickers[i]), linked)
+            print ''
 
 
 cube = CCube()
-#cube.rotate("R2 U R' B' R B2 U' B D2 F L2 F' D2 B2 R2")
+
+#cube.print_all_links()
+
+#print cube 
+cube.rotate("R B' U B D2 F R2 U' L R2 F' L2 F' D2 F R2 U2 B2 U2 F' U2")
+#cube.rotate("L")
+#print cube 
+#cube.rotate("U")
 print cube 
 
-#'''
-for j in xrange(6):
-    print j
-    cside = cube.sides[j]
-    for i in xrange(len(cside.linked_stickers)):
-        linked = cside.linked_stickers[i]
-        print '%s: %s' % (color_to_text(cside.stickers[i]), linked)
-    print ''
-#'''
-
-#cube.rotate_single('U')
-
-
-#rint cube
-
-#print cube
