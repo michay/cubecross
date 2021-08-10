@@ -269,7 +269,52 @@ class CCube(object):
             result.append(' '* (len(v) + 3) + v)
 
         return '\n'.join(result)
+    
+    def is_cross_solved(self):
         
+        are_all_same = True
+        good_cross = {'U': [1, 3, 4, 5, 7], 'L' : [1, 4], 'R' : [1, 4], 'F': [1, 4], 'B': [1, 4]}
+        for k in good_cross:
+            cross_indices = good_cross[k]
+            cross_side = self.sides[self.sides_hash[k]]
+            for i in cross_indices:
+                if cross_side.stickers[i] / 10 != cross_side.color:
+                    are_all_same = False
+        return are_all_same
+        
+    def print_cross(self):
+        result = []
+
+        back_side = str(cube.sides[0])
+        vals = back_side.split('\n')
+        for v in vals:
+            result.append(' '* (len(v) + 3) + v)
+        result.append('')
+
+
+        left_side = str(cube.sides[3])
+        lvals = left_side.split('\n')
+
+        top_side = str(cube.sides[1])
+        tvals = top_side.split('\n')
+
+        right_side = str(cube.sides[4])
+        rvals = right_side.split('\n')
+
+
+        for i in xrange(len(lvals)):
+            sss = '%s   %s   %s' % (lvals[i], tvals[i], rvals[i])
+            result.append(sss)
+        result.append('')
+
+        front_side = str(cube.sides[2])
+        vals = front_side.split('\n')
+        for v in vals:
+            result.append(' '* (len(v) + 3) + v)
+
+        print '\n'.join(result)
+        
+    
     def print_all_links(self, side_id = -1):
         for j in xrange(6):
             if side_id != -1 and side_id != j:
@@ -284,12 +329,10 @@ class CCube(object):
 
 cube = CCube()
 
-#cube.print_all_links()
-
-#print cube 
-cube.rotate("R B' U B D2 F R2 U' L R2 F' L2 F' D2 F R2 U2 B2 U2 F' U2")
-#cube.rotate("L")
-#print cube 
-#cube.rotate("U")
+cube.rotate("L2 B2 R U2 F2 R' D2 R B2 R U2 B U D F2 L' F D R2 U' B2")
 print cube 
+print cube.is_cross_solved()
 
+cube.rotate("F'")
+print cube 
+print cube.is_cross_solved()
