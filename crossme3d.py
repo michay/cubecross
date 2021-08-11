@@ -167,7 +167,7 @@ class CCube(object):
             left_side.linked_stickers[0 + i].append(CLink(up_side, 0 + i*3))
             up_side.linked_stickers[0 + i*3].append(CLink(left_side, 0 + i))
 
-            up_side.linked_stickers[2 + i*3].append(CLink(right_side, 2-  i))
+            up_side.linked_stickers[2 + i*3].append(CLink(right_side, 2 -  i))
             right_side.linked_stickers[2 - i].append(CLink(up_side, 2 + i*3))
 
             right_side.linked_stickers[6 + i].append(CLink(down_side, 2 + i*3))
@@ -206,8 +206,8 @@ class CCube(object):
         for i in xrange(CSide.cube_size):
             down_side.linked_stickers[0 + i].append(CLink(up_side, 6 + i))
             up_side.linked_stickers[6 + i].append(CLink(down_side, 0 + i))
-                
-                
+
+
     def link_left_right(self, left, right):
 
         left_side = self.sides[self.sides_hash[left]]
