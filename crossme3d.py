@@ -1,3 +1,4 @@
+import time
 
 COLOR_BLUE = 0
 COLOR_WHITE = 1
@@ -228,8 +229,8 @@ class CCube(object):
                     self.rotate_single(action)
 
             if do_print:
-                print ' '.join(vals)
-                #print ''
+                print 'Rotation: %s' % ' '.join(vals)
+                print ''
 
     def rotate_single(self, action):
         
@@ -285,9 +286,10 @@ class CCube(object):
         return are_all_same
         
         
-    def solve_cross(self, max_depth = 6):
+    def solve_cross(self, max_depth = 6, do_show_time = False):
         
         all_solutions = []
+        search_nodes = 0
         
         all_actions = []
         for a in ['R', 'L', 'U', 'D', 'F', 'B']:
@@ -296,18 +298,23 @@ class CCube(object):
         queue = []
         queue.extend(all_actions)
         
+        start = time.time()
         prev_rotations = []
+        
+        max_depth_reached = 0
         while len(queue) > 0:
             
             action = queue.pop(0)
             self.rotate_between_rotations(prev_rotations, action)
             prev_rotations = action
+            search_nodes += 1
+            
+            max_depth_reached = max(max_depth_reached, len(action))
 
             if self.is_cross_solved():
                 max_depth = min(len(action) + 1, max_depth)
                 all_solutions.append(' '.join(action))
                 continue
-
             
             if len(action) < max_depth:
                 for a in all_actions:
@@ -319,6 +326,12 @@ class CCube(object):
                     z = action[:]
                     z.extend(a)
                     queue.append(z)
+
+        end = time.time()
+        
+        if do_show_time:
+            print max_depth_reached
+            print 'Searched %s variations for %.1f seconds' % (search_nodes, end - start)
 
         return all_solutions
         
@@ -390,6 +403,7 @@ class CCube(object):
             result.append(' '* (len(v) + 3) + v)
 
         print '\n'.join(result)
+        print ''
         
     
     def print_all_links(self, side_id = -1):
@@ -405,20 +419,36 @@ class CCube(object):
 
 
 cube = CCube()
-
-#print cube.diff_between_rotations(['R', 'R'], ['R', 'L', 'R'])
 cube.rotate("F2 B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2", do_print = True)
-cube.print_cross()
-#print cube.is_cross_solved()
+print cube
+print ''
 
-print '\ncross solution: %s' % cube.solve_cross()
+print 'cross solution: %s' % cube.solve_cross(do_show_time = True)
 
 '''
-cube.rotate("U2")
-cube.print_cross()
-print cube.is_cross_solved()
+Example:
 
-cube.rotate("L2")
-cube.print_cross()
-print cube.is_cross_solved()
+cube = CCube()
+cube.rotate("F2 B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2", do_print = True)
+print cube
+print 'cross solution: %s' % cube.solve_cross(do_show_time = True)
+
+
+Result:
+Rotation: F2 B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2
+
+        O W R
+        W W Y
+        B R G
+
+B O R   Y Y R   W G B   W B W
+B O B   O G W   R R G   W B R
+Y O G   Y Y W   G G R   Y Y O
+
+        O O O
+        G Y R
+        B B G
+
+Searched 65073 variations for 8.1 seconds
+cross solution: ["R D' F2", "R U' R2 U", "R F D' F2", "R F' D' F2", "R F2 D' F2", "U' R' U R2", "D R D' F2", "D' R D' F2", "D2 R D' F2"]
 '''
