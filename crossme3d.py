@@ -216,9 +216,8 @@ class CCube(object):
             left_side.linked_stickers[2 + i*3].append(CLink(right_side, 0 + i*3))
             right_side.linked_stickers[0 + i*3].append(CLink(left_side, 2 + i*3))
 
-    def rotate(self, action):
+    def rotate(self, action, do_print = False):
             vals = action.strip().split(' ')
-            print ' '.join(vals)
             for action in vals:
                 repeat_me = 1
                 if action[-1] == '2':
@@ -227,7 +226,10 @@ class CCube(object):
 
                 for i in xrange(repeat_me):
                     self.rotate_single(action)
-            print ''
+
+            if do_print:
+                print ' '.join(vals)
+                #print ''
 
     def rotate_single(self, action):
         
@@ -282,6 +284,56 @@ class CCube(object):
                     are_all_same = False
         return are_all_same
         
+    def solve_cross(self, max_depth = 3, current_depth = 0, prev_path = '', all_solutions = []):
+    
+        actions = []
+        for a in ['R', 'L', 'U', 'D', 'F', 'B']:
+            actions.extend([a, a+"'", a + "2"])
+        #actions = ["L2", "U2"]
+        
+        last_action = ''
+        did_find = False
+        for action in actions:
+
+            if last_action:
+                anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
+                #print 'anti: %s' % anti_last_action
+                self.rotate(anti_last_action)
+            
+            self.rotate(action)
+            if self.is_cross_solved():
+                all_solutions.append((prev_path + ' ' + action).strip())
+                did_find = True
+            last_action = action
+        
+        if did_find:
+            if last_action:
+                anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
+                #print 'anti: %s' % anti_last_action
+                self.rotate(anti_last_action)
+            return
+            
+        if current_depth < max_depth:
+            for action in actions:
+            
+                if len(prev_path) > 0 and prev_path.strip("2'")[-1] == action[0]:
+                    continue
+                    
+                if last_action:
+                    anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
+                    #print 'anti: %s' % anti_last_action
+                    self.rotate(anti_last_action)
+                self.rotate(action)
+                self.solve_cross(max_depth, current_depth+1, prev_path + ' ' + action)
+                last_action = action
+
+        if last_action:
+            anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
+            #print 'anti: %s' % anti_last_action
+            self.rotate(anti_last_action)
+        
+        return all_solutions
+        
     def print_cross(self):
         result = []
 
@@ -329,10 +381,18 @@ class CCube(object):
 
 cube = CCube()
 
-cube.rotate("L2 B2 R U2 F2 R' D2 R B2 R U2 B U D F2 L' F D R2 U' B2")
-print cube 
+cube.rotate("F2 B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2", do_print = True)
+cube.print_cross()
+#print cube.is_cross_solved()
+
+print '\ncross solution: %s' % cube.solve_cross()
+
+'''
+cube.rotate("U2")
+cube.print_cross()
 print cube.is_cross_solved()
 
-cube.rotate("F'")
-print cube 
+cube.rotate("L2")
+cube.print_cross()
 print cube.is_cross_solved()
+'''
