@@ -284,55 +284,80 @@ class CCube(object):
                     are_all_same = False
         return are_all_same
         
-    def solve_cross(self, max_depth = 3, current_depth = 0, prev_path = '', all_solutions = []):
-    
-        actions = []
+        
+    def solve_cross(self, max_depth = 6):
+        
+        all_solutions = []
+        
+        all_actions = []
         for a in ['R', 'L', 'U', 'D', 'F', 'B']:
-            actions.extend([a, a+"'", a + "2"])
-        #actions = ["L2", "U2"]
-        
-        last_action = ''
-        did_find = False
-        for action in actions:
-
-            if last_action:
-                anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
-                #print 'anti: %s' % anti_last_action
-                self.rotate(anti_last_action)
+            all_actions.extend([[a], [a + "'"], [a + "2"]])
             
-            self.rotate(action)
+        queue = []
+        queue.extend(all_actions)
+        
+        prev_rotations = []
+        while len(queue) > 0:
+            
+            action = queue.pop(0)
+            self.rotate_between_rotations(prev_rotations, action)
+            prev_rotations = action
+
             if self.is_cross_solved():
-                all_solutions.append((prev_path + ' ' + action).strip())
-                did_find = True
-            last_action = action
-        
-        if did_find:
-            if last_action:
-                anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
-                #print 'anti: %s' % anti_last_action
-                self.rotate(anti_last_action)
-            return
-            
-        if current_depth < max_depth:
-            for action in actions:
-            
-                if len(prev_path) > 0 and prev_path.strip("2'")[-1] == action[0]:
-                    continue
-                    
-                if last_action:
-                    anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
-                    #print 'anti: %s' % anti_last_action
-                    self.rotate(anti_last_action)
-                self.rotate(action)
-                self.solve_cross(max_depth, current_depth+1, prev_path + ' ' + action)
-                last_action = action
+                max_depth = min(len(action) + 1, max_depth)
+                all_solutions.append(' '.join(action))
+                continue
 
-        if last_action:
-            anti_last_action = (last_action + "'").replace("''", "").replace("2'", "2")
-            #print 'anti: %s' % anti_last_action
-            self.rotate(anti_last_action)
-        
+            
+            if len(action) < max_depth:
+                for a in all_actions:
+                    
+                    # Skip same operation
+                    if action[-1][0] == a[0][0]:
+                        continue
+                    
+                    z = action[:]
+                    z.extend(a)
+                    queue.append(z)
+
         return all_solutions
+        
+    def undo_rotation(self, rotation):
+        anti_rotation = (rotation + "'").replace("''", "").replace("2'", "2")
+        #print '    %s/%s' % (rotation, anti_rotation)
+        self.rotate(anti_rotation)
+    
+    def rotate_between_rotations(self, rotation1, rotation2):
+        
+        # Gets current ""rotation1"" and peforms necessary rotations to get to ""rotation2"
+        anti_count, for_count = self.diff_between_rotations(rotation1, rotation2)
+        #print '%s -> %s | %d, %d, %s, %s' % (rotation1, rotation2, anti_count, for_count, rotation1[anti_count:], rotation2[-for_count:])
+        
+        for i in xrange(anti_count):
+            #print '   rotation1[-%d] = %s' % (i, rotation1[-i-1])
+            self.undo_rotation(rotation1[-i - 1])
+            
+        self.rotate(' '.join(rotation2[-for_count:]))
+    
+    def diff_between_rotations(self, rotation1, rotation2):
+        
+        # rotation1 is current rotation
+        # will return how much anti-rotation is required for rotation2
+        
+        len_rotation1 = len(rotation1)
+        len_rotation2 = len(rotation2)
+        lll = min(len_rotation1, len_rotation2)
+        
+        result = 0
+        for i in xrange(lll):
+            if rotation1[i] != rotation2[i]:
+                break
+
+            result += 1
+        
+        # How much does "rotation1" has to go back to allow second rotation
+        # How much "rotations2" needs to perform
+        return len_rotation1 - result, len_rotation2 - result
         
     def print_cross(self):
         result = []
@@ -381,6 +406,7 @@ class CCube(object):
 
 cube = CCube()
 
+#print cube.diff_between_rotations(['R', 'R'], ['R', 'L', 'R'])
 cube.rotate("F2 B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2", do_print = True)
 cube.print_cross()
 #print cube.is_cross_solved()
