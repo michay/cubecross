@@ -6,7 +6,7 @@
 #include <malloc.h>
 
 
-#define DEBUG_MODE
+//#define DEBUG_MODE
 
 #define TRUE  1
 #define FALSE 0
@@ -38,29 +38,30 @@ typedef enum
 
 typedef enum
 {
-   ROTATE_R = 10,
-   ROTATE_R_PRIME,
-   ROTATE_R2,
+   ROTATE_B = 0,
+   ROTATE_B_PRIME,
+   ROTATE_B2,
 
-   ROTATE_L = 20,
-   ROTATE_L_PRIME,
-   ROTATE_L2,
-
-   ROTATE_U = 30,
+   ROTATE_U = 4,
    ROTATE_U_PRIME,
    ROTATE_U2,
 
-   ROTATE_D = 40,
-   ROTATE_D_PRIME,
-   ROTATE_D2,
-
-   ROTATE_F = 50,
+   ROTATE_F = 8,
    ROTATE_F_PRIME,
    ROTATE_F2,
 
-   ROTATE_B = 60,
-   ROTATE_B_PRIME,
-   ROTATE_B2,
+   ROTATE_L = 12,
+   ROTATE_L_PRIME,
+   ROTATE_L2,
+
+   ROTATE_R = 16,
+   ROTATE_R_PRIME,
+   ROTATE_R2,
+
+   ROTATE_D = 20,
+   ROTATE_D_PRIME,
+   ROTATE_D2,
+
 } Rotate_t;
 
 typedef struct
@@ -79,10 +80,18 @@ typedef struct
    int sticker_index;
 } StickerLink_t;
 
-typedef struct 
+typedef struct
 {
    int color;  // CubeColor_t
    int unique_index;
+} StickerValues_t;
+
+typedef struct 
+{
+   StickerValues_t active;
+   StickerValues_t previous;
+   int timestamp;
+
    int sticker_type;  //StickerType_t
    StickerLink_t linked_stickers[MAX_LINKED_STICKERS];
    int linked_stickers_count;
@@ -97,6 +106,7 @@ typedef struct CubeSide_t
 typedef struct
 {
    CubeSide_t sides[CUBE_SIDES];
+   int timestamp;
 } Cube_t;
 
 
@@ -104,7 +114,9 @@ static void enqueue(Queue_t* queue_p, int value);
 static int dequeue(Queue_t* queue_p);
 
 static void init_cube_side(CubeSide_t* side_p, int color);
-static void rotate_cube_side(CubeSide_t* side_p, int is_clockwise);
+static void rotate_cube_single(Cube_t* cube_p, int rotation);
+static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise);
+static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p);
 static void print_cube_side(CubeSide_t* side_p);
 
 static void init_cube(Cube_t* cube_p);
@@ -112,6 +124,7 @@ static void link_up_down(CubeSide_t* up_side_p, CubeSide_t* down_side_p);
 static void link_left_right(CubeSide_t* left_side_p, CubeSide_t* right_side_p);
 static void link_two_stickers(Sticker_t* sticker1_p, CubeSide_t* side1_p, Sticker_t* sticker2_p, CubeSide_t* side2_p);
 static void print_cube(Cube_t* cube_p);
+static void print_cube_links(Cube_t* cube_p);
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -125,10 +138,9 @@ int _tmain(int argc, _TCHAR* argv[])
 
    print_cube(&cube);
 
-   //print_cube_side(&cube.sides[0]);
+   //rotate_cube_string(&cube, "F B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2");
+   //print_cube(&cube);
 
-   rotate_cube_side(&cube.sides[COLOR_GREEN], FALSE);
-   print_cube(&cube);
 
    //print_cube_side(&cube.sides[0]);
 
@@ -177,6 +189,8 @@ static void init_cube(Cube_t* cube_p)
 
    CubeSide_t* side_p;
 
+   memset(cube_p, 0, sizeof(Cube_t));
+   
    side_p = &cube_p->sides;
    for (i = 0; i < CUBE_SIDES; ++i, ++side_p)
    {
@@ -187,13 +201,15 @@ static void init_cube(Cube_t* cube_p)
    link_up_down(front_side_p, down_side_p);
    link_up_down(up_side_p, front_side_p);
 
-   usticker_p = &up_side_p->stickers[0];
-   bsticker_p = &back_side_p->stickers[2];
    for (i = 0; i < CUBE_SIZE; ++i)
    {
+      usticker_p = &up_side_p->stickers[0 + i];
+      bsticker_p = &back_side_p->stickers[2 - i];
       link_two_stickers(usticker_p, up_side_p, bsticker_p, back_side_p);
-      usticker_p++;
-      bsticker_p--;
+
+      bsticker_p = &back_side_p->stickers[8 - i];
+      dsticker_p = &down_side_p->stickers[6 + i];
+      link_two_stickers(bsticker_p, back_side_p, dsticker_p, down_side_p);
    }
 
    link_left_right(left_side_p, front_side_p);
@@ -285,9 +301,9 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[up_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[up_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", up_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", up_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf("\n");
@@ -299,9 +315,9 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[left_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[left_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", left_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", left_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf(" ");
@@ -309,9 +325,9 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[front_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[front_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", front_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", front_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf(" ");
@@ -319,9 +335,9 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[right_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[right_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", right_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", right_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf(" ");
@@ -329,9 +345,9 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[back_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[back_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", back_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", back_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
 
@@ -350,14 +366,32 @@ static void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[down_side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[down_side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", down_side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", down_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf("\n");
    }
    printf("\n");
+}
+
+static void print_cube_links(Cube_t* cube_p)
+{
+   for (int i = 0; i < CUBE_SIDES; ++i)
+   {
+      for (int j = 0; j < CUBE_SIZE*CUBE_SIZE; ++j)
+      {
+         Sticker_t* sticker_p = &cube_p->sides[i].stickers[j];
+         printf("%d: ", sticker_p->active.unique_index);
+         
+         for (int k = 0; k < sticker_p->linked_stickers_count; ++k)
+            printf("%d, ", sticker_p->linked_stickers[k].connected_side_p->stickers[sticker_p->linked_stickers[k].sticker_index].active.unique_index);
+
+         printf("\n");
+      }
+      printf("\n");
+   }
 }
 
 static void init_cube_side(CubeSide_t* side_p, int color)
@@ -369,8 +403,8 @@ static void init_cube_side(CubeSide_t* side_p, int color)
    sticker_p = side_p->stickers;
    for (int i = 0; i < CUBE_SIZE * CUBE_SIZE; ++i, ++sticker_p)
    {
-      sticker_p->color = color;
-      sticker_p->unique_index = (color + 1) * 10 + i;
+      sticker_p->active.color = color;
+      sticker_p->active.unique_index = (color + 1) * 10 + i;
 
       if (i == 4)
          sticker_p->sticker_type = STICKER_TYPE_CENTER;
@@ -381,8 +415,25 @@ static void init_cube_side(CubeSide_t* side_p, int color)
    }
 }
 
-static void rotate_cube_side(CubeSide_t* side_p, int is_clockwise)
+static void rotate_cube_single(Cube_t* cube_p, int rotation)
 {
+   int rotation_side;
+   int is_anti_clockwise;
+   int num_repeats;
+
+   rotation_side = (rotation >> 2);
+   is_anti_clockwise = (rotation & 1);
+   num_repeats = (rotation & 2) ? 2 : 1;
+
+   for (int i = 0; i < num_repeats; ++i)
+   {
+      rotate_cube_side(cube_p, rotation_side, !is_anti_clockwise);
+   }
+}
+
+static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
+{
+   CubeSide_t* side_p = &cube_p->sides[side];
    int clowise_position_array[] = { 6, 3, 0, 7, 4, 1, 8, 5, 2 };
    int anti_clowise_position_array[] = { 2, 5, 8, 1, 4, 7, 0, 3, 6 };
    int* new_indices_array_p;
@@ -405,6 +456,9 @@ static void rotate_cube_side(CubeSide_t* side_p, int is_clockwise)
       memcpy(&side_p->stickers[i], &prev_stickers[copy_index], sizeof(Sticker_t));
    }
 
+   // Set timestamp for copy
+   cube_p->timestamp++;
+
    // Rotate linked stickers
    for (int i = 0; i < CUBE_SIZE * CUBE_SIZE; ++i)
    {
@@ -414,36 +468,61 @@ static void rotate_cube_side(CubeSide_t* side_p, int is_clockwise)
 
       for (int j = 0; j < sticker_p->linked_stickers_count; ++j)
       {
-         StickerLink_t* plink = &sticker_p->linked_stickers[sticker_p->linked_stickers_count - j - 1];
-         StickerLink_t* nlink = &new_pos_sticker_p->linked_stickers[j];
+         StickerLink_t* prev_link_p = &sticker_p->linked_stickers[sticker_p->linked_stickers_count - j - 1];
+         StickerLink_t* new_link_p = &new_pos_sticker_p->linked_stickers[j];
+         StickerValues_t* new_sticker_value_p;
 
-         printf("%d -> %d\n", 
-               plink->connected_side_p->stickers[plink->sticker_index].unique_index,
-               nlink->connected_side_p->stickers[nlink->sticker_index].unique_index);
+         // Save previous value
+         memcpy(&new_link_p->connected_side_p->stickers[new_link_p->sticker_index].previous, &new_link_p->connected_side_p->stickers[new_link_p->sticker_index].active, sizeof(StickerValues_t));
+
+         if (prev_link_p->connected_side_p->stickers[prev_link_p->sticker_index].timestamp == cube_p->timestamp)
+            new_sticker_value_p = &prev_link_p->connected_side_p->stickers[prev_link_p->sticker_index].previous;
+         else
+            new_sticker_value_p = &prev_link_p->connected_side_p->stickers[prev_link_p->sticker_index].active;
+
+         // Copy new value
+         memcpy(&new_link_p->connected_side_p->stickers[new_link_p->sticker_index].active, new_sticker_value_p, sizeof(StickerValues_t));
+         new_link_p->connected_side_p->stickers[new_link_p->sticker_index].timestamp = cube_p->timestamp;
       }
    }
+}
 
-   /*
-   old_stickers = {}
-   for i in xrange(len(self.stickers)) :
-      prev_link = self.linked_stickers[i]
-      new_link = self.linked_stickers[inverse_new_pos[i]]
-      assert len(prev_link) == len(new_link)
+static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p)
+{
+   int rotation = -1;
+   int is_new_rotation = TRUE;
+   char* inp_p = rotate_input_p;
 
-   for j in xrange(len(prev_link)) :
-      plink = prev_link[len(prev_link) - 1 - j]
-      nlink = new_link[j]
+   while (*inp_p)
+   {
+      if (*inp_p == ' ')
+      {
+         assert(rotation != -1);
+         rotate_cube_single(cube_p, rotation);
+         
+         is_new_rotation = TRUE;
+         rotation = -1;
+      }
+      else if (*inp_p == '\'')
+         rotation += 1;
+      else if (*inp_p == '2')
+         rotation += 2;
+      else if (*inp_p == 'R') rotation = ROTATE_R;
+      else if (*inp_p == 'L') rotation = ROTATE_L;
+      else if (*inp_p == 'U') rotation = ROTATE_U;
+      else if (*inp_p == 'F') rotation = ROTATE_F;
+      else if (*inp_p == 'D') rotation = ROTATE_D;
+      else if (*inp_p == 'B') rotation = ROTATE_B;
+      else
+      {
+         assert(FALSE);
+      }
 
-      old_sticker_value = nlink.connected_side.stickers[nlink.sticker_index]
+      inp_p++;
+   }
 
-      new_sticker_value = plink.connected_side.stickers[plink.sticker_index]
-      if old_stickers.has_key(plink.get_unique()) :
-         new_sticker_value = old_stickers[plink.get_unique()]
-
-         old_stickers[nlink.get_unique()] = old_sticker_value
-
-         nlink.connected_side.stickers[nlink.sticker_index] = new_sticker_value
-   */
+   assert(rotation != -1);
+   rotate_cube_single(cube_p, rotation);
 }
 
 static void print_cube_side(CubeSide_t* side_p)
@@ -454,9 +533,9 @@ static void print_cube_side(CubeSide_t* side_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[side_p->stickers[i * CUBE_SIZE + j].color]);
+         printf("%c ", colors_hash[side_p->stickers[i * CUBE_SIZE + j].active.color]);
 #else
-         printf("%d ", side_p->stickers[i * CUBE_SIZE + j].unique_index);
+         printf("%d ", side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
       }
       printf("\n");
