@@ -13,10 +13,17 @@
 
 #define MAX_LINKED_STICKERS 2
 #define CUBE_SIZE 3
-#define CUBE_SIDES 6
 #define MAX_DEPTH 6
 #define ARRAY_LENGTH 18
 #define MAX_QUEUE_DEPTH (18 * 18 * 18 * 18 * 18 * 18 * 18)
+
+#define M_MIN(_val1_, _val2_) (((_val1_ )< (_val2_)) ? (_val1_)  : ( _val2_))
+#define M_MAX(_val1_, _val2_) (((_val1_ )> (_val2_)) ? (_val1_)  : ( _val2_))
+
+#define M_IS_PRIME_ROTATION(_rotation_) ((_rotation_) & 1)
+#define M_TOGGLE_PRIME_INDICATION(_rotation_) ((_rotation_) ^= 1)
+#define M_IS_REPEAT_ROTATION(_rotation_) ((_rotation_) & 2)
+#define M_GET_ROTATIONS_SIDE(_rotation_) (_rotation_ >> 2)
 
 typedef enum
 {
@@ -28,6 +35,17 @@ typedef enum
    COLOR_YELLOW,
    COLOR_COUNT,
 } CubeColor_t;
+
+typedef enum
+{
+   CUBE_SIDE_UP = COLOR_WHITE,
+   CUBE_SIDE_DOWN = COLOR_YELLOW,
+   CUBE_SIDE_BACK = COLOR_BLUE,
+   CUBE_SIDE_FRONT = COLOR_GREEN,
+   CUBE_SIDE_LEFT = COLOR_ORANGE,
+   CUBE_SIDE_RIGHT = COLOR_RED,
+   CUBE_SIDE_COUNT = 6,
+} CubeSides_t;
 
 typedef enum
 {
@@ -66,7 +84,13 @@ typedef enum
 
 typedef struct
 {
-   int* entries_p;
+   unsigned char solutionDepth;
+   char solutionArray[MAX_DEPTH];
+} CrossSolution_t;
+
+typedef struct
+{
+   CrossSolution_t* entries_p;
    int head;
    int tail;
    int count;
@@ -105,19 +129,26 @@ typedef struct CubeSide_t
 
 typedef struct
 {
-   CubeSide_t sides[CUBE_SIDES];
+   CubeSide_t sides[CUBE_SIDE_COUNT];
    int timestamp;
 } Cube_t;
 
 
-static void enqueue(Queue_t* queue_p, int value);
-static int dequeue(Queue_t* queue_p);
+static CrossSolution_t* enqueue(Queue_t* queue_p);
+static CrossSolution_t* dequeue(Queue_t* queue_p);
 
 static void init_cube_side(CubeSide_t* side_p, int color);
 static void rotate_cube_single(Cube_t* cube_p, int rotation);
 static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise);
 static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p);
+static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count);
+static void anti_rotate(Cube_t* cube_p, int rotation);
 static void print_cube_side(CubeSide_t* side_p);
+
+static int is_cross_solved(Cube_t* cube_p);
+static void rotate_between_rotations(Cube_t* cube_p, CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p);
+static int similar_between_rotations(CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p);
+static void print_solution(CrossSolution_t* solution_p);
 
 static void init_cube(Cube_t* cube_p);
 static void link_up_down(CubeSide_t* up_side_p, CubeSide_t* down_side_p);
@@ -130,56 +161,89 @@ int _tmain(int argc, _TCHAR* argv[])
 {
    Queue_t queue;
    Cube_t cube;
-
+   CrossSolution_t emptySolution;
+   CrossSolution_t* prev_solution_p;
+   CrossSolution_t* new_solution_p;
+   CrossSolution_t* current_solution_p;
+   char rotations_array[ARRAY_LENGTH];
+   int max_allowed_depth;
    int i;
    int nodes_searched = 0;
    
    init_cube(&cube);
 
+
+   rotate_cube_string(&cube, "L2 D' L2 U2 R2 F2 D' F2 D' L' B' D L2 F' B2 L2 F2 B' R U'");
+
    print_cube(&cube);
+   printf("cross solved - %d", is_cross_solved(&cube));
 
-   //rotate_cube_string(&cube, "F B' L2 U2 B' D2 B2 R2 U2 B2 D2 R' U F2 R F' L' U' R F' B2");
-   //print_cube(&cube);
-
-
-   //print_cube_side(&cube.sides[0]);
-
-   /*
    // BFS for solve
 
    // Init queue
    queue.head = 0;
    queue.tail = 0;
    queue.count = 0;
-   queue.entries_p = (int*)malloc(sizeof(int)*MAX_QUEUE_DEPTH);
+   queue.entries_p = (int*)malloc(sizeof(CrossSolution_t)*MAX_QUEUE_DEPTH);
    assert(queue.entries_p != NULL);
 
-   for (i = 0; i < ARRAY_LENGTH; ++i)
-      enqueue(&queue, 0);
+   for (i = 0; i < CUBE_SIDE_COUNT; ++i)
+   {
+      rotations_array[i * 3] = i * 4;
+      rotations_array[i * 3 + 1] = i * 4 + 1;
+      rotations_array[i * 3 + 2] = i * 4 + 2;
+   }
 
+   for (i = 0; i < ARRAY_LENGTH; ++i)
+   {
+      new_solution_p = enqueue(&queue);
+      new_solution_p->solutionDepth = 1;
+      new_solution_p->solutionArray[0] = rotations_array[i];
+   }
+
+   printf("\ncross solutions:\n");
+   emptySolution.solutionDepth = 0;
+   prev_solution_p = &emptySolution;
+   max_allowed_depth = MAX_DEPTH;
    while (queue.count > 0)
    {
-      int p = dequeue(&queue);
+      current_solution_p = dequeue(&queue);
+      rotate_between_rotations(&cube, prev_solution_p, current_solution_p);
+      if (is_cross_solved(&cube))
+      {
+         print_solution(current_solution_p);
+         max_allowed_depth = M_MIN(max_allowed_depth, current_solution_p->solutionDepth + 1);
+      }
+      prev_solution_p = current_solution_p;
       nodes_searched++;
 
-      if (p < MAX_DEPTH)
+      if (current_solution_p->solutionDepth < max_allowed_depth - 1)
       {
          for (i = 0; i < ARRAY_LENGTH; ++i)
-            enqueue(&queue, p + 1);
+         {
+            // Skip same side rotations [for example -> R R']
+            if (M_GET_ROTATIONS_SIDE(rotations_array[i]) == M_GET_ROTATIONS_SIDE(current_solution_p->solutionArray[current_solution_p->solutionDepth - 1]))
+               continue;
+
+            new_solution_p = enqueue(&queue);
+            
+            memcpy(new_solution_p, current_solution_p, sizeof(CrossSolution_t));
+            new_solution_p->solutionArray[new_solution_p->solutionDepth] = rotations_array[i];
+            new_solution_p->solutionDepth++;
+         }
       }
    }
    printf("nodes_searched = %d", nodes_searched);
-   */
 }
 
 static void init_cube(Cube_t* cube_p)
 {
-   CubeSide_t* back_side_p = &cube_p->sides[COLOR_BLUE];
-   CubeSide_t* front_side_p = &cube_p->sides[COLOR_GREEN];
-   CubeSide_t* left_side_p = &cube_p->sides[COLOR_ORANGE];
-   CubeSide_t* up_side_p = &cube_p->sides[COLOR_WHITE];
-   CubeSide_t* right_side_p = &cube_p->sides[COLOR_RED];
-   CubeSide_t* down_side_p = &cube_p->sides[COLOR_YELLOW];
+   CubeSide_t* back_side_p = &cube_p->sides[CUBE_SIDE_BACK];
+   CubeSide_t* front_side_p = &cube_p->sides[CUBE_SIDE_FRONT];
+   CubeSide_t* left_side_p = &cube_p->sides[CUBE_SIDE_LEFT];
+   CubeSide_t* up_side_p = &cube_p->sides[CUBE_SIDE_UP];
+   CubeSide_t* right_side_p = &cube_p->sides[CUBE_SIDE_RIGHT];
+   CubeSide_t* down_side_p = &cube_p->sides[CUBE_SIDE_DOWN];
    Sticker_t* usticker_p;
    Sticker_t* bsticker_p;
    Sticker_t* lsticker_p;
@@ -192,7 +256,7 @@ static void init_cube(Cube_t* cube_p)
    memset(cube_p, 0, sizeof(Cube_t));
    
    side_p = &cube_p->sides;
-   for (i = 0; i < CUBE_SIDES; ++i, ++side_p)
+   for (i = 0; i < CUBE_SIDE_COUNT; ++i, ++side_p)
    {
       memset(side_p, 0, sizeof(CubeSide_t));
       init_cube_side(side_p, i);
@@ -283,12 +347,12 @@ static void link_two_stickers(Sticker_t* sticker1_p, CubeSide_t* side1_p, Sticke
 static void print_cube(Cube_t* cube_p)
 {
    char colors_hash[] = { 'B', 'W', 'G', 'O', 'R', 'Y' };
-   CubeSide_t* back_side_p = &cube_p->sides[COLOR_BLUE];
-   CubeSide_t* front_side_p = &cube_p->sides[COLOR_GREEN];
-   CubeSide_t* left_side_p = &cube_p->sides[COLOR_ORANGE];
-   CubeSide_t* up_side_p = &cube_p->sides[COLOR_WHITE];
-   CubeSide_t* right_side_p = &cube_p->sides[COLOR_RED];
-   CubeSide_t* down_side_p = &cube_p->sides[COLOR_YELLOW];
+   CubeSide_t* back_side_p = &cube_p->sides[CUBE_SIDE_BACK];
+   CubeSide_t* front_side_p = &cube_p->sides[CUBE_SIDE_FRONT];
+   CubeSide_t* left_side_p = &cube_p->sides[CUBE_SIDE_LEFT];
+   CubeSide_t* up_side_p = &cube_p->sides[CUBE_SIDE_UP];
+   CubeSide_t* right_side_p = &cube_p->sides[CUBE_SIDE_RIGHT];
+   CubeSide_t* down_side_p = &cube_p->sides[CUBE_SIDE_DOWN];
 
    for (int i = 0; i < CUBE_SIZE; ++i)
    {
@@ -378,7 +442,7 @@ static void print_cube(Cube_t* cube_p)
 
 static void print_cube_links(Cube_t* cube_p)
 {
-   for (int i = 0; i < CUBE_SIDES; ++i)
+   for (int i = 0; i < CUBE_SIDE_COUNT; ++i)
    {
       for (int j = 0; j < CUBE_SIZE*CUBE_SIZE; ++j)
       {
@@ -422,8 +486,8 @@ static void rotate_cube_single(Cube_t* cube_p, int rotation)
    int num_repeats;
 
    rotation_side = (rotation >> 2);
-   is_anti_clockwise = (rotation & 1);
-   num_repeats = (rotation & 2) ? 2 : 1;
+   is_anti_clockwise = M_IS_PRIME_ROTATION(rotation);
+   num_repeats = M_IS_REPEAT_ROTATION(rotation) ? 2 : 1;
 
    for (int i = 0; i < num_repeats; ++i)
    {
@@ -525,6 +589,134 @@ static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p)
    rotate_cube_single(cube_p, rotation);
 }
 
+static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count)
+{
+   char* rotate_p;
+
+   rotate_p = rotate_array + start_offset;
+   while (rotations_count)
+   {
+      rotate_cube_single(cube_p, *rotate_p);
+      rotations_count--;
+      rotate_p++;
+   }
+}
+
+static void anti_rotate(Cube_t* cube_p, int rotation)
+{
+   int anti_rotation;
+
+   anti_rotation = rotation;
+
+   if (!M_IS_REPEAT_ROTATION(rotation))
+   {
+      M_TOGGLE_PRIME_INDICATION(anti_rotation);
+   }
+
+   rotate_cube_single(cube_p, anti_rotation);
+}
+
+static int is_cross_solved(Cube_t* cube_p)
+{
+   int result = TRUE;
+   static int cross_indices[] = { 1, 3, 5, 7 };
+   int cross_sides[] = { CUBE_SIDE_LEFT, CUBE_SIDE_RIGHT, CUBE_SIDE_FRONT, CUBE_SIDE_BACK };
+   CubeSide_t* side_p;
+   StickerValues_t* sticker_p;
+
+   side_p = &cube_p->sides[CUBE_SIDE_UP];
+   for (int i = 0; i < 4; ++i)
+   {
+      sticker_p = &side_p->stickers[cross_indices[i]].active;
+      if (sticker_p->color != side_p->color)
+      {
+         result = FALSE;
+         break;
+      }
+   }
+
+   for (int i = 0; i < 4; ++i)
+   {
+      side_p = &cube_p->sides[cross_sides[i]];
+      sticker_p = &side_p->stickers[1].active;
+      if (sticker_p->color != side_p->color)
+      {
+         result = FALSE;
+         break;
+      }
+   }
+
+   return result;
+}
+
+static void rotate_between_rotations(Cube_t* cube_p, CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p)
+{
+   int common_rotations;
+   int anti_count;
+   int for_count;
+
+   common_rotations = similar_between_rotations(rotate_array1_p, rotate_array2_p);
+   anti_count = rotate_array1_p->solutionDepth - common_rotations;
+   for_count = rotate_array2_p->solutionDepth - common_rotations;
+
+   for (int i = 0; i < anti_count; ++i)
+   {
+      anti_rotate(cube_p, rotate_array1_p->solutionArray[rotate_array1_p->solutionDepth - 1 - i]);
+   }
+
+   rotate_cube_array(cube_p, rotate_array2_p->solutionArray, common_rotations, for_count);
+}
+
+static int similar_between_rotations(CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p)
+{
+   // rotation1 is current rotation
+   // will return how much anti - rotation is required for rotation2
+   int loop_size;
+   int i;
+   char* rotate1_p;
+   char* rotate2_p;
+
+   loop_size = M_MIN(rotate_array1_p->solutionDepth, rotate_array2_p->solutionDepth);
+   rotate1_p = &rotate_array1_p->solutionArray[0];
+   rotate2_p = &rotate_array2_p->solutionArray[0];
+   for (i = 0; i < loop_size; ++i)
+   {
+      if (*rotate1_p != *rotate2_p)
+         break;
+
+      rotate1_p++;
+      rotate2_p++;
+   }
+
+   return i;
+}
+
+static void print_solution(CrossSolution_t* solution_p)
+{
+   char* rotate_p;
+   int rotation_side;
+
+   printf("   ");
+   rotate_p = &solution_p->solutionArray[0];
+   for (int i = 0; i < solution_p->solutionDepth; ++i, ++rotate_p)
+   {
+      rotation_side = M_GET_ROTATIONS_SIDE(*rotate_p);
+      
+      if (rotation_side == CUBE_SIDE_UP) printf("U");
+      else if (rotation_side == CUBE_SIDE_DOWN) printf("D");
+      else if (rotation_side == CUBE_SIDE_BACK) printf("B");
+      else if (rotation_side == CUBE_SIDE_FRONT) printf("F");
+      else if (rotation_side == CUBE_SIDE_LEFT) printf("L");
+      else if (rotation_side == CUBE_SIDE_RIGHT) printf("R");
+
+      if (M_IS_PRIME_ROTATION(*rotate_p)) printf("'");
+      else if (M_IS_REPEAT_ROTATION(*rotate_p)) printf("2");
+
+      printf(" ");
+   }
+   printf("\n");
+}
+
 static void print_cube_side(CubeSide_t* side_p)
 {
    char colors_hash[] = { 'B', 'W', 'G', 'O', 'R', 'Y' };
@@ -543,9 +735,11 @@ static void print_cube_side(CubeSide_t* side_p)
    printf("\n");
 }
 
-static void enqueue(Queue_t* queue_p, int value)
+static CrossSolution_t* enqueue(Queue_t* queue_p)
 {
-   queue_p->entries_p[queue_p->head] = value;
+   CrossSolution_t* new_entry_p;
+
+   new_entry_p = &queue_p->entries_p[queue_p->head];
 
    queue_p->head++;
    if (queue_p->head == MAX_QUEUE_DEPTH)
@@ -554,13 +748,15 @@ static void enqueue(Queue_t* queue_p, int value)
 
    queue_p->count++;
    assert(queue_p->count <= MAX_QUEUE_DEPTH);
+
+   return new_entry_p;
 }
 
-static int dequeue(Queue_t* queue_p)
+static CrossSolution_t* dequeue(Queue_t* queue_p)
 {
-   int result;
+   CrossSolution_t* old_entry_p;
 
-   result = queue_p->entries_p[queue_p->tail];
+   old_entry_p = &queue_p->entries_p[queue_p->tail];
    
    queue_p->tail++;
    if (queue_p->tail == MAX_QUEUE_DEPTH)
@@ -569,5 +765,5 @@ static int dequeue(Queue_t* queue_p)
    assert(queue_p->count > 0);
    queue_p->count--;
 
-   return result;
+   return old_entry_p;
 }
