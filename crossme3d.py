@@ -1,3 +1,5 @@
+# rubiks algorithm that is implemented in c project
+
 import time
 
 COLOR_BLUE = 0
