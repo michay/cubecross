@@ -2,7 +2,7 @@ Solves Rubik's cube cross but searching all possible options with BFS
 
 output example:
 
-
+<pre>
 Rotate [White top, Green front]: U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B
 
 [W = White; G = Green; R = Red; O = Orange; B = Blue; Y = Yellow]
@@ -31,3 +31,4 @@ cross solutions after: [Yellow top, Green front]:
    length 6; F' D U F' L2 F' [1 seconds]
    length 6; F' D U F2 L2 F' [1 seconds]
 combinations searched = 6487593; total time = 1 seconds
+</pre>
