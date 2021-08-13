@@ -13,7 +13,7 @@
 
 #define MAX_LINKED_STICKERS 2
 #define CUBE_SIZE 3
-#define MAX_DEPTH 6
+#define MAX_DEPTH 8
 #define ARRAY_LENGTH 18
 #define MAX_QUEUE_DEPTH (18 * 18 * 18 * 18 * 18 * 18 * 18)
 
@@ -38,21 +38,14 @@ typedef enum
 
 typedef enum
 {
-   CUBE_SIDE_UP = COLOR_WHITE,
-   CUBE_SIDE_DOWN = COLOR_YELLOW,
    CUBE_SIDE_BACK = COLOR_BLUE,
+   CUBE_SIDE_UP = COLOR_WHITE,
    CUBE_SIDE_FRONT = COLOR_GREEN,
    CUBE_SIDE_LEFT = COLOR_ORANGE,
    CUBE_SIDE_RIGHT = COLOR_RED,
+   CUBE_SIDE_DOWN = COLOR_YELLOW,
    CUBE_SIDE_COUNT = 6,
 } CubeSides_t;
-
-typedef enum
-{
-   STICKER_TYPE_EDGE,
-   STICKER_TYPE_CORNER,
-   STICKER_TYPE_CENTER,
-} StickerType_t;
 
 typedef enum
 {
@@ -81,6 +74,13 @@ typedef enum
    ROTATE_D2,
 
 } Rotate_t;
+
+typedef enum
+{
+   STICKER_TYPE_EDGE,
+   STICKER_TYPE_CORNER,
+   STICKER_TYPE_CENTER,
+} StickerType_t;
 
 typedef struct
 {
@@ -131,6 +131,7 @@ typedef struct
 {
    CubeSide_t sides[CUBE_SIDE_COUNT];
    int timestamp;
+   time_t start_solve_timestamp;
 } Cube_t;
 
 
@@ -148,7 +149,7 @@ static void print_cube_side(CubeSide_t* side_p);
 static int is_cross_solved(Cube_t* cube_p);
 static void rotate_between_rotations(Cube_t* cube_p, CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p);
 static int similar_between_rotations(CrossSolution_t* rotate_array1_p, CrossSolution_t* rotate_array2_p);
-static void print_solution(CrossSolution_t* solution_p);
+static void print_solution(Cube_t* cube_p, CrossSolution_t* solution_p, int is_yellow_top);
 
 static void init_cube(Cube_t* cube_p);
 static void link_up_down(CubeSide_t* up_side_p, CubeSide_t* down_side_p);
@@ -172,11 +173,9 @@ int _tmain(int argc, _TCHAR* argv[])
    
    init_cube(&cube);
 
-
-   rotate_cube_string(&cube, "L2 D' L2 U2 R2 F2 D' F2 D' L' B' D L2 F' B2 L2 F2 B' R U'");
+   rotate_cube_string(&cube, "U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B");
 
    print_cube(&cube);
-   printf("cross solved - %d", is_cross_solved(&cube));
 
    // BFS for solve
 
@@ -201,7 +200,8 @@ int _tmain(int argc, _TCHAR* argv[])
       new_solution_p->solutionArray[0] = rotations_array[i];
    }
 
-   printf("\ncross solutions:\n");
+   printf("\ncross solutions after Z2: [Yellow top, Green front]:\n");
+   time(&cube.start_solve_timestamp);
    emptySolution.solutionDepth = 0;
    prev_solution_p = &emptySolution;
    max_allowed_depth = MAX_DEPTH;
@@ -211,7 +211,7 @@ int _tmain(int argc, _TCHAR* argv[])
       rotate_between_rotations(&cube, prev_solution_p, current_solution_p);
       if (is_cross_solved(&cube))
       {
-         print_solution(current_solution_p);
+         print_solution(&cube, current_solution_p, TRUE);
          max_allowed_depth = M_MIN(max_allowed_depth, current_solution_p->solutionDepth + 1);
       }
       prev_solution_p = current_solution_p;
@@ -233,7 +233,10 @@ int _tmain(int argc, _TCHAR* argv[])
          }
       }
    }
-   printf("nodes_searched = %d", nodes_searched);
+
+   time_t total_time;
+   time(&total_time);
+   printf("combinations searched = %d; total time = %d seconds", nodes_searched, total_time - cube.start_solve_timestamp);
 }
 
 static void init_cube(Cube_t* cube_p)
@@ -557,6 +560,9 @@ static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p)
    int is_new_rotation = TRUE;
    char* inp_p = rotate_input_p;
 
+   printf("Rotate [White top, Green front]: %s\n\n", rotate_input_p);
+   printf("[W = White; G = Green; R = Red; O = Orange; B = Blue; Y = Yellow]\n");
+
    while (*inp_p)
    {
       if (*inp_p == ' ')
@@ -691,30 +697,49 @@ static int similar_between_rotations(CrossSolution_t* rotate_array1_p, CrossSolu
    return i;
 }
 
-static void print_solution(CrossSolution_t* solution_p)
+static void print_solution(Cube_t* cube_p, CrossSolution_t* solution_p, int is_yellow_top)
 {
    char* rotate_p;
    int rotation_side;
 
-   printf("   ");
+   printf("   length %d; ", solution_p->solutionDepth);
    rotate_p = &solution_p->solutionArray[0];
    for (int i = 0; i < solution_p->solutionDepth; ++i, ++rotate_p)
    {
       rotation_side = M_GET_ROTATIONS_SIDE(*rotate_p);
       
-      if (rotation_side == CUBE_SIDE_UP) printf("U");
-      else if (rotation_side == CUBE_SIDE_DOWN) printf("D");
-      else if (rotation_side == CUBE_SIDE_BACK) printf("B");
+      if (rotation_side == CUBE_SIDE_BACK) printf("B");
       else if (rotation_side == CUBE_SIDE_FRONT) printf("F");
-      else if (rotation_side == CUBE_SIDE_LEFT) printf("L");
-      else if (rotation_side == CUBE_SIDE_RIGHT) printf("R");
+      else if (rotation_side == CUBE_SIDE_UP) 
+      {
+         if (!is_yellow_top) printf("U");
+         else printf("D");
+      }
+      else if (rotation_side == CUBE_SIDE_DOWN) 
+      {
+         if (!is_yellow_top) printf("D");
+         else printf("U");
+      }
+      else if (rotation_side == CUBE_SIDE_LEFT)
+      {
+         if (!is_yellow_top) printf("L");
+         else printf("R");
+      }
+      else if (rotation_side == CUBE_SIDE_RIGHT) 
+      {
+         if (!is_yellow_top) printf("R");
+         else printf("L");
+      }
 
       if (M_IS_PRIME_ROTATION(*rotate_p)) printf("'");
       else if (M_IS_REPEAT_ROTATION(*rotate_p)) printf("2");
 
       printf(" ");
    }
-   printf("\n");
+
+   time_t current_time;
+   time(&current_time);
+   printf("[%d seconds]\n", current_time - cube_p->start_solve_timestamp);
 }
 
 static void print_cube_side(CubeSide_t* side_p)
