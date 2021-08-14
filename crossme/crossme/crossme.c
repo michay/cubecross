@@ -210,7 +210,7 @@ static void solve_cross(Cube_t* cube_p)
 
       if (did_solve)
       {
-         max_depth = M_MIN(max_depth, depth + 1);
+         max_depth = M_MIN(max_depth, depth + 2);
       }
    }
 
