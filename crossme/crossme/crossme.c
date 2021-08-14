@@ -147,12 +147,18 @@ static void solve_cross(Cube_t* cube_p);
 static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth);
 static void print_solution(Cube_t* cube_p, CubeRotation_t* solution_p, int is_yellow_top);
 
-static void init_cube(Cube_t* cube_p);
+void init_cube(Cube_t* cube_p);
 static void link_up_down(CubeSide_t* up_side_p, CubeSide_t* down_side_p);
 static void link_left_right(CubeSide_t* left_side_p, CubeSide_t* right_side_p);
 static void link_two_stickers(Sticker_t* sticker1_p, CubeSide_t* side1_p, Sticker_t* sticker2_p, CubeSide_t* side2_p);
 static void print_cube(Cube_t* cube_p);
 static void print_cube_links(Cube_t* cube_p);
+
+Cube_t DLL_Cube;
+__declspec(dllexport) void dll_init(void);
+__declspec(dllexport) void dll_rotate(char* rotate_input_p);
+__declspec(dllexport) void dll_solve_cross(void);
+__declspec(dllexport) void dll_print_cube(void);
 
 int _tmain(int argc, _TCHAR* argv[])
 {
@@ -165,11 +171,28 @@ int _tmain(int argc, _TCHAR* argv[])
    print_cube(&cube);
 
    solve_cross(&cube);
-
-   time_t total_time;
-   time(&total_time);
-   printf("combinations searched = %d; total time = %d seconds", cube.nodes_searched, total_time - cube.start_solve_timestamp);
 }
+
+__declspec(dllexport) void dll_init(void)
+{
+   init_cube(&DLL_Cube);
+}
+
+__declspec(dllexport) void dll_rotate(char* rotate_input_p)
+{
+   rotate_cube_string(&DLL_Cube, rotate_input_p);
+}
+
+__declspec(dllexport) void dll_solve_cross(void)
+{
+   solve_cross(&DLL_Cube);
+}
+
+__declspec(dllexport) void dll_print_cube(void)
+{
+   print_cube(&DLL_Cube);
+}
+
 
 static void solve_cross(Cube_t* cube_p)
 {
@@ -192,6 +215,10 @@ static void solve_cross(Cube_t* cube_p)
    }
 
    rotate_between_rotations(cube_p, &cube_p->active_rotation, &emptySolution);
+
+   time_t total_time;
+   time(&total_time);
+   printf("combinations searched = %d; total time = %d seconds", cube_p->nodes_searched, total_time - cube_p->start_solve_timestamp);
 }
 
 static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth)
