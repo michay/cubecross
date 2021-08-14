@@ -1,8 +1,8 @@
 Solves Rubik's cube cross 
 
-run by downloading the files crossme.dll and crossme.py
+run by downloading the files crossme.dll and solveme.py and running solveme.py
 
-python source [crossme.py]:
+python source [solveme.py]:
 
 from ctypes import cdll
 <pre>
