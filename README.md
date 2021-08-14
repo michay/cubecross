@@ -3,13 +3,13 @@ Solves Rubik's cube cross
 python source:
 
 from ctypes import cdll
-
+<pre>
 crossme_dll = cdll.LoadLibrary('crossme.dll')
 crossme_dll.dll_init()
 crossme_dll.dll_rotate("U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B");
 crossme_dll.dll_print_cube()
 crossme_dll.dll_solve_cross()
-
+</pre>
 
 output example:
 
