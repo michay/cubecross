@@ -1,4 +1,4 @@
-# rubiks algorithm that is implemented in c project
+# rubiks algorithm prototype, implemented in c 
 
 import time
 
