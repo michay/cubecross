@@ -1,4 +1,4 @@
-Solves Rubik's cube cross 
+Solves Rubik's Cube cross 
 
 run by:
 1. download files `solveme.py` and `crossme.dll`
