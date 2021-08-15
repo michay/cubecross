@@ -4,8 +4,9 @@ run by downloading the files crossme.dll and solveme.py and running solveme.py
 
 python source [solveme.py]:
 
-from ctypes import cdll
 <pre>
+from ctypes import cdll
+
 crossme_dll = cdll.LoadLibrary('crossme.dll')
 crossme_dll.dll_init()
 crossme_dll.dll_rotate("U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B");
