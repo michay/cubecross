@@ -1,8 +1,10 @@
 Solves Rubik's cube cross 
 
-run by downloading the files crossme.dll and solveme.py and running solveme.py
+run by:
+1. download files `solveme.py` and `crossme.dll`
+2. run `solveme.py` from command line
 
-python source [solveme.py]:
+python source [`solveme.py`]:
 
 <pre>
 from ctypes import cdll
