@@ -9,9 +9,11 @@ python source [`solveme.py`]:
 <pre>
 from ctypes import cdll
 
+is_white_top = False
+
 crossme_dll = cdll.LoadLibrary('crossme.dll')
-crossme_dll.dll_init()
-crossme_dll.dll_rotate("U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B");
+crossme_dll.dll_init(is_white_top)
+crossme_dll.dll_rotate("B' L D2 B' L2 D2 F D2 L2 F' U2 L2 B2 D' L' D2 F R2 F U");
 crossme_dll.dll_print_cube()
 crossme_dll.dll_solve_cross()
 </pre>
@@ -19,32 +21,42 @@ crossme_dll.dll_solve_cross()
 output example:
 
 <pre>
-Rotate [White top, Green front]:
-  U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B
+Rotate [Yellow top, Green front]:
+  B' L D2 B' L2 D2 F D2 L2 F' U2 L2 B2 D' L' D2 F R2 F U
 
 [W = White; G = Green; R = Red; O = Orange; B = Blue; Y = Yellow]
-       R G B
-       W W O
-       O Y O
+       R B B
+       Y Y O
+       R B W
 
-Y B G  W R W  B Y R  Y O G
-G O W  R G O  W R W  G B Y
-R R G  Y B R  W B O  Y G W
+W O G  Y R O  G G R  Y Y B
+O R O  B G R  Y O R  W B W
+G G W  O G R  G W O  Y R O
 
-       O Y B
-       B Y O
-       G R B
+       B W W
+       Y W B
+       Y G B
 
 
-cross solutions after Z2: [Yellow top, Green front]:
-   length 5; F' D U L2 F' [0 seconds]
-   length 5; F' U D L2 F' [0 seconds]
-   length 6; B F' D2 F2 D' F2 [0 seconds]
-   length 6; B' F' U2 B2 D F2 [0 seconds]
-   length 6; F' B D2 F2 D' F2 [2 seconds]
-   length 6; F' B' U2 B2 D F2 [2 seconds]
-   length 6; F' D L2 U F' L2 [2 seconds]
-   ...
-   length 6; U2 F' U D L2 F' [6 seconds]
-combinations searched = 14645088; total time = 6 seconds
+cross solutions: [Yellow top, Green front]:
+length 5; B2 L' R' B' R2
+length 5; L' R  F  D2 F'
+length 5; B' R' B' L' R
+length 6; U' B' R' B' L' R
+length 5; R  L' F  D2 F'
+length 6; R2 B2 R  B' U2 L2
+length 6; U  B' R' B' L' R
+length 5; D2 L' F' R  D2
+length 6; U2 B' R' B' L' R
+length 6; R' B2 U2 R  B  L2
+length 6; F2 L' R  F  D2 F
+length 6; L2 R  L  F  D2 F'
+length 6; L  R  F  L2 B  D2
+length 6; B  R' B  L' R  B2
+length 6; F  R  F  L' D2 F2
+length 7; F' B' U2 F  R' B' L'
+length 7; D  B' L' B' D' L' R
+length 7; D' B2 F' R' D  L' R2
+
+9748436 combinations searched for 1 seconds
 </pre>
