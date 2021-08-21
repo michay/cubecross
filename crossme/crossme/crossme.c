@@ -7,18 +7,18 @@
 #include <windows.h>
 
 //#define DEBUG_MODE
-#define SOLVE_WITH_THREADS
+//#define SOLVE_WITH_THREADS
 
-#define TRUE  1
-#define FALSE 0
+#define CUBE_INIT_YELLOW_TOP (FALSE)
+#define CUBE_INIT_WHITE_TOP (TRUE)
 
-#define MAX_LINKED_STICKERS 2
-#define CUBE_SIZE 3
-#define MAX_ROTATION_ARRAY 100
-#define ARRAY_LENGTH 18
-#define CROSS_MAX_SEARCH_DEPTH 8
+#define MAX_LINKED_STICKERS (2)
+#define CUBE_SIZE (3)
+#define MAX_ROTATION_ARRAY (100)
+#define ARRAY_LENGTH (18)
+#define CROSS_MAX_SEARCH_DEPTH (8)
 
-#define MAX_CROSS_SOLUTIONS_THREAD (1)
+#define MAX_SOLUTIONS_THREAD (1)
 
 #define M_MIN(_val1_, _val2_) (((_val1_ )< (_val2_)) ? (_val1_)  : ( _val2_))
 #define M_MAX(_val1_, _val2_) (((_val1_ )> (_val2_)) ? (_val1_)  : ( _val2_))
@@ -29,6 +29,8 @@
 #define M_GET_ROTATIONS_STEP(_rotation_) ((_rotation_) >> 2)
 #define M_IS_AXIS_ROTATION(_rotation_) ((_rotation_) >= ROTATE_X)
 #define M_GET_AXIS_TO_ROTATE(_rotation_) (((_rotation_) - ROTATE_X) >> 2)
+
+#define M_ARE_ALL_PAIRS_SOLVED(_cube_p_) (((_cube_p_)->solved_pairs_bitmap) == ((1 << (PAIR_CORNER_COUNT)) - 1))
 
 typedef enum
 {
@@ -107,6 +109,15 @@ typedef enum
    AXIS_COUNT
 } AxisRotation_t;
 
+typedef enum
+{
+   PAIR_CORNER_BACK_LEFT = 0,
+   PAIR_CORNER_BACK_RIGHT,
+   PAIR_CORNER_FRONT_LEFT,
+   PAIR_CORNER_FRONT_RIGHT,
+   PAIR_CORNER_COUNT
+} PairCorner_t;
+
 typedef struct
 {
    unsigned char solution_depth;
@@ -147,18 +158,22 @@ typedef struct CubeSide_t
 typedef struct
 {
    CubeSide_t sides[CUBE_SIDE_COUNT];
-   
    int timestamp;
 
-   CubeRotation_t active_rotation;  // rotation from last synced rotation
    CubeRotation_t synced_rotation; // last synced rotation
+   CubeRotation_t active_rotation;  // rotation from last synced rotation
 
+   // X/Y/Z rotation
    int sides_hash[CUBE_SIDE_COUNT];
 
-   // Cross solutions
-   int num_found_cross_solutions;
+   // Found solutions
    time_t start_solve_timestamp;
+   CubeRotation_t found_solutions[MAX_SOLUTIONS_THREAD];
+   int num_found_solutions;
    int nodes_searched;
+
+   // F2L
+   int solved_pairs_bitmap;
 } Cube_t;
 
 typedef struct
@@ -167,27 +182,37 @@ typedef struct
    int start_rotation;
 } CubeThreadedSolution_t;
 
-
-static void init_cube_side(CubeSide_t* side_p, int color);
+// Cube rotation
 static void rotate_cube_single(Cube_t* cube_p, int rotation);
 static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise);
 static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print);
-static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count);
+static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count, int do_sync);
 static void anti_rotate(Cube_t* cube_p, int rotation);
 static void rotate_cube_axis(Cube_t* cube_p, int rotation);
 static void print_cube_side(CubeSide_t* side_p);
 
-static int is_cross_solved(Cube_t* cube_p);
+// Solving in general
 static void rotate_between_rotations(Cube_t* cube_p, CubeRotation_t* rotate_array1_p, CubeRotation_t* rotate_array2_p);
 static int similar_between_rotations(CubeRotation_t* rotate_array1_p, CubeRotation_t* rotate_array2_p);
-static void solve_cross(Cube_t* cube_p, CubeRotation_t* base_solution_p);
-static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth);
 static void print_solution(Cube_t* cube_p, CubeRotation_t* solution_p, int is_yellow_top);
 static void print_orientation(Cube_t* cube_p);
 
+// Solving framework
+static void solve_cfop_part(Cube_t* cube_p, CubeRotation_t* base_solution_p, int(*is_solved)(Cube_t*));
+static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth, int(*is_solved)(Cube_t*));
+
+// Cross
+static int is_cross_solved(Cube_t* cube_p);
 DWORD WINAPI threaded_solve_cross(LPVOID lpParam);
 
+// F2L
+static int map_solved_pairs(Cube_t* cube_p);
+static int are_more_pairs_solved(Cube_t* cube_p);
+static int is_pair_solved(Cube_t* cube_p, int pair_corner);
+
+// Cube initialisation
 void init_cube(Cube_t* cube_p, int is_white_top);
+static void init_cube_side(CubeSide_t* side_p, int color);
 static void link_up_down(CubeSide_t* up_side_p, CubeSide_t* down_side_p);
 static void link_left_right(CubeSide_t* left_side_p, CubeSide_t* right_side_p);
 static void link_two_stickers(Sticker_t* sticker1_p, CubeSide_t* side1_p, Sticker_t* sticker2_p, CubeSide_t* side2_p);
@@ -203,6 +228,7 @@ Cube_t DLL_Cube;
 __declspec(dllexport) void dll_init(int is_white_top);
 __declspec(dllexport) void dll_rotate(char* rotate_input_p);
 __declspec(dllexport) void dll_solve_cross(void);
+__declspec(dllexport) void dll_solve_f2l(void);
 __declspec(dllexport) void dll_print_cube(void);
 
 #ifdef SOLVE_WITH_THREADS
@@ -216,10 +242,12 @@ CRITICAL_SECTION Critical_section;
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-   dll_init(TRUE);
-   dll_rotate("R' F D2 L2 F2 L' D2 R U2 L2 D2 F2 R' U2 D R F' D R2 D' L'");
+   dll_init(CUBE_INIT_YELLOW_TOP);
+   dll_rotate("B U D' R' F L' F D2 B U2 R2 F2 B2 U2 B2 U B2 L2 U2 R");
    dll_print_cube();
-   dll_solve_cross();
+   //dll_solve_cross();
+   dll_rotate("U2 B2 F R' D F");
+   dll_solve_f2l();
 }
 
 __declspec(dllexport) void dll_init(int is_white_top)
@@ -236,6 +264,12 @@ __declspec(dllexport) void dll_solve_cross(void)
 {
    int total_nodes_searched;
 
+   if (is_cross_solved(&DLL_Cube))
+   {
+      printf("Cross already solved\n");
+      return;
+   }
+
    printf("\ncross solutions: [");
    print_orientation(&DLL_Cube);
    printf("]:\n");
@@ -244,7 +278,7 @@ __declspec(dllexport) void dll_solve_cross(void)
 
 #ifndef SOLVE_WITH_THREADS
    CubeRotation_t empty_solution = { 0 };
-   solve_cross(&DLL_Cube, &empty_solution);
+   solve_cfop_part(&DLL_Cube, &empty_solution, is_cross_solved);
    total_nodes_searched = DLL_Cube.nodes_searched;
 #else
    CubeThreadedSolution_t  thread_cubes[ARRAY_LENGTH];
@@ -286,6 +320,131 @@ __declspec(dllexport) void dll_solve_cross(void)
    printf("\n%d combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
 }
 
+__declspec(dllexport) void dll_solve_f2l(void)
+{
+   int total_nodes_searched = 0;
+
+   printf("\nF2L solutions: [");
+   print_orientation(&DLL_Cube);
+   printf("]:\n");
+
+   DLL_Cube.solved_pairs_bitmap = map_solved_pairs(&DLL_Cube);
+   if (M_ARE_ALL_PAIRS_SOLVED(&DLL_Cube))
+   {
+      printf("F2L already solved");
+   }
+
+   time(&DLL_Cube.start_solve_timestamp);
+
+   CubeRotation_t empty_solution = { 0 };
+
+   while (!M_ARE_ALL_PAIRS_SOLVED(&DLL_Cube))
+   {
+      printf("Solving pair:\n");
+
+      // Find solutions
+      solve_cfop_part(&DLL_Cube, &empty_solution, are_more_pairs_solved);
+      
+      // Apply
+      cube_assert(DLL_Cube.num_found_solutions > 0);
+      rotate_cube_array(&DLL_Cube, DLL_Cube.found_solutions[0].solution_array, 0, DLL_Cube.found_solutions[0].solution_depth, TRUE);
+      DLL_Cube.solved_pairs_bitmap = map_solved_pairs(&DLL_Cube);
+
+      total_nodes_searched += DLL_Cube.nodes_searched;
+   }
+
+   time_t total_time;
+   time(&total_time);
+
+   printf("\n%d combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
+}
+
+static int map_solved_pairs(Cube_t* cube_p)
+{
+   int result = 0;
+
+   for (int i = 0; i < PAIR_CORNER_COUNT; ++i)
+   {
+      if (is_pair_solved(cube_p, i))
+      {
+         result |= (1 << i);
+      }
+   }
+
+   return result;
+}
+
+static int are_more_pairs_solved(Cube_t* cube_p)
+{
+   int current_solved_pairs;
+   int prev_solved_pairs;
+   int are_prev_still_solved;
+   int are_new_pairs_solved;
+
+   if (!is_cross_solved(cube_p))
+   {
+      return FALSE;
+   }
+
+   prev_solved_pairs = cube_p->solved_pairs_bitmap;
+   current_solved_pairs = map_solved_pairs(cube_p);
+
+   are_prev_still_solved = (prev_solved_pairs & current_solved_pairs) == prev_solved_pairs;
+   are_new_pairs_solved = prev_solved_pairs != current_solved_pairs;
+
+   return are_prev_still_solved && are_new_pairs_solved;
+}
+
+static int is_pair_solved(Cube_t* cube_p, int pair_corner)
+{
+   int result = TRUE;
+   static int pairs_hash[] = { 0, 2, 6, 8 };
+   static int paired_couple = 0;
+   CubeSide_t* side_p;
+   Sticker_t* sticker_p;
+   StickerLink_t* linked_sticker_p;
+   CubeSide_t* linked_side_p;
+
+   side_p = get_cube_side(cube_p, CUBE_SIDE_DOWN);
+   if (side_p->color == COLOR_WHITE)
+   {
+      paired_couple = -3;
+   }
+   else
+   {
+      cube_assert(FALSE);
+   }
+
+   sticker_p = &side_p->stickers[pairs_hash[pair_corner]];
+   cube_assert(sticker_p->linked_stickers_count == 2);
+   if (sticker_p->active.color != side_p->color)
+   {
+      result = FALSE;
+   }
+
+   for (int i = 0; result && i < sticker_p->linked_stickers_count; ++i)
+   {
+      linked_sticker_p = &sticker_p->linked_stickers[i];
+      linked_side_p = linked_sticker_p->connected_side_p;
+
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.color != linked_side_p->color)
+      {
+         result = FALSE;
+         break;
+      }
+
+      cube_assert(0 <= linked_sticker_p->sticker_index + paired_couple && linked_sticker_p->sticker_index + paired_couple < (CUBE_SIZE * CUBE_SIZE));
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index + paired_couple].active.color != linked_side_p->color)
+      {
+         result = FALSE;
+         break;
+      }
+   }
+
+   return result;
+}
+
+
 DWORD WINAPI threaded_solve_cross(LPVOID lpParam)
 {
    CubeThreadedSolution_t* threaded_cube_p = (CubeThreadedSolution_t*)lpParam;
@@ -294,7 +453,7 @@ DWORD WINAPI threaded_solve_cross(LPVOID lpParam)
    base_solution.solution_array[0] = threaded_cube_p->start_rotation;
    base_solution.solution_depth = 1;
 
-   solve_cross(&threaded_cube_p->cube, &base_solution);
+   solve_cfop_part(&threaded_cube_p->cube, &base_solution, is_cross_solved);
 
    return FALSE;
 }
@@ -304,21 +463,22 @@ __declspec(dllexport) void dll_print_cube(void)
    print_cube(&DLL_Cube);
 }
 
-static void solve_cross(Cube_t* cube_p, CubeRotation_t* base_solution_p)
+static void solve_cfop_part(Cube_t* cube_p, CubeRotation_t* base_solution_p, int(*is_solved)(Cube_t*))
 {
    int did_solve;
    int max_depth = CROSS_MAX_SEARCH_DEPTH;
 
+   cube_p->num_found_solutions = 0;
    for (int depth = 1; depth < max_depth; ++depth)
    {
-      did_solve = solve_cross_max_depth(cube_p, base_solution_p, depth);
+      did_solve = solve_with_max_depth(cube_p, base_solution_p, depth, is_solved);
 
       if (did_solve > 0)
       {
          max_depth = M_MIN(max_depth, depth + 2);
       }
 
-      if (cube_p->num_found_cross_solutions >= MAX_CROSS_SOLUTIONS_THREAD)
+      if (cube_p->num_found_solutions >= MAX_SOLUTIONS_THREAD)
       {
          break;
       }
@@ -327,7 +487,7 @@ static void solve_cross(Cube_t* cube_p, CubeRotation_t* base_solution_p)
    rotate_between_rotations(cube_p, &cube_p->active_rotation, base_solution_p);
 }
 
-static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth)
+static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth, int(*is_solved)(Cube_t*))
 {
    static char rotations_array[] = { ROTATE_B, ROTATE_B_PRIME, ROTATE_B2, ROTATE_U, ROTATE_U_PRIME, ROTATE_U2, ROTATE_F, ROTATE_F_PRIME, ROTATE_F2, ROTATE_L, ROTATE_L_PRIME, ROTATE_L2, ROTATE_R, ROTATE_R_PRIME, ROTATE_R2, ROTATE_D, ROTATE_D_PRIME, ROTATE_D2 };
    int result = FALSE;
@@ -340,9 +500,11 @@ static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p
       memcpy(&cube_p->active_rotation, base_solution_p, sizeof(CubeRotation_t));
       cube_p->nodes_searched++;
       
-      if (is_cross_solved(cube_p))
+      if (is_solved(cube_p))
       {
-         cube_p->num_found_cross_solutions++;
+         cube_assert(cube_p->num_found_solutions < MAX_SOLUTIONS_THREAD);
+         memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
+         cube_p->num_found_solutions++;
          print_solution(cube_p, base_solution_p, FALSE);
          return 1;
       }
@@ -362,10 +524,10 @@ static int solve_cross_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p
          continue;
 
       base_solution_p->solution_array[base_solution_p->solution_depth - 1] = rotations_array[i];
-      did_solve = solve_cross_max_depth(cube_p, base_solution_p, max_depth);
+      did_solve = solve_with_max_depth(cube_p, base_solution_p, max_depth, is_solved);
       result = result || did_solve;
 
-      if (cube_p->num_found_cross_solutions >= MAX_CROSS_SOLUTIONS_THREAD)
+      if (cube_p->num_found_solutions >= MAX_SOLUTIONS_THREAD)
       {
          break;
       }
@@ -721,8 +883,8 @@ static void rotate_cube_axis(Cube_t* cube_p, int rotation)
 static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
 {
    CubeSide_t* side_p = &cube_p->sides[side];
-   int clowise_position_array[] = { 6, 3, 0, 7, 4, 1, 8, 5, 2 };
-   int anti_clowise_position_array[] = { 2, 5, 8, 1, 4, 7, 0, 3, 6 };
+   static int clockwise_position_array[] = { 6, 3, 0, 7, 4, 1, 8, 5, 2 };
+   static int anti_cloclwise_position_array[] = { 2, 5, 8, 1, 4, 7, 0, 3, 6 };
    int* new_indices_array_p;
    int* inverse_indices_array_p;
    Sticker_t prev_stickers[CUBE_SIZE * CUBE_SIZE];
@@ -730,8 +892,8 @@ static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
    Sticker_t* new_pos_sticker_p;
 
    // select array to use
-   new_indices_array_p = is_clockwise ? clowise_position_array : anti_clowise_position_array;
-   inverse_indices_array_p = is_clockwise ? anti_clowise_position_array : clowise_position_array;
+   new_indices_array_p = is_clockwise ? clockwise_position_array : anti_cloclwise_position_array;
+   inverse_indices_array_p = is_clockwise ? anti_cloclwise_position_array : clockwise_position_array;
 
    // Copy previous stickers
    memcpy(&prev_stickers, &side_p->stickers, sizeof(prev_stickers));
@@ -831,7 +993,7 @@ static void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_prin
    cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
 }
 
-static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count)
+static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count, int do_sync)
 {
    char* rotate_p;
 
@@ -839,6 +1001,14 @@ static void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offs
    while (rotations_count)
    {
       rotate_cube_single(cube_p, *rotate_p);
+
+      if (do_sync)
+      {
+         cube_p->synced_rotation.solution_array[cube_p->synced_rotation.solution_depth] = *rotate_p;
+         cube_p->synced_rotation.solution_depth++;
+         cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
+      }
+
       rotations_count--;
       rotate_p++;
    }
@@ -862,26 +1032,27 @@ static int is_cross_solved(Cube_t* cube_p)
 {
    int result = TRUE;
    static int cross_indices[] = { 1, 3, 5, 7 };
-   int cross_sides[] = { CUBE_SIDE_LEFT, CUBE_SIDE_RIGHT, CUBE_SIDE_FRONT, CUBE_SIDE_BACK };
    CubeSide_t* side_p;
-   StickerValues_t* sticker_p;
+   CubeSide_t* linked_side_p;
+   Sticker_t* sticker_p;
+   StickerLink_t* linked_sticker_p;
 
    side_p = get_cube_side(cube_p, CUBE_SIDE_DOWN);
    for (int i = 0; i < 4; ++i)
    {
-      sticker_p = &side_p->stickers[cross_indices[i]].active;
-      if (sticker_p->color != side_p->color)
+      // Check same as center
+      sticker_p = &side_p->stickers[cross_indices[i]];
+      if (sticker_p->active.color != side_p->color)
       {
          result = FALSE;
          break;
       }
-   }
 
-   for (int i = 0; i < 4; ++i)
-   {
-      side_p = get_cube_side(cube_p, cross_sides[i]);
-      sticker_p = &side_p->stickers[1].active;
-      if (sticker_p->color != side_p->color)
+      // Check linked stikcer same as its center
+      cube_assert(sticker_p->linked_stickers_count == 1);
+      linked_sticker_p = &sticker_p->linked_stickers[0];
+      linked_side_p = linked_sticker_p->connected_side_p;
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.color != linked_side_p->color)
       {
          result = FALSE;
          break;
@@ -906,7 +1077,7 @@ static void rotate_between_rotations(Cube_t* cube_p, CubeRotation_t* rotate_arra
       anti_rotate(cube_p, rotate_array1_p->solution_array[rotate_array1_p->solution_depth - 1 - i]);
    }
 
-   rotate_cube_array(cube_p, rotate_array2_p->solution_array, common_rotations, for_count);
+   rotate_cube_array(cube_p, rotate_array2_p->solution_array, common_rotations, for_count, FALSE);
 }
 
 static int similar_between_rotations(CubeRotation_t* rotate_array1_p, CubeRotation_t* rotate_array2_p)
