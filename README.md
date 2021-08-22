@@ -9,42 +9,39 @@ python source [`solveme.py`]:
 <pre>
 from ctypes import cdll
 
+is_white_top = False
+
 crossme_dll = cdll.LoadLibrary('crossme.dll')
-crossme_dll.dll_init()
-crossme_dll.dll_rotate("U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B");
-crossme_dll.dll_print_cube()
+crossme_dll.dll_init(is_white_top)
+crossme_dll.dll_rotate("D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2");
 crossme_dll.dll_solve_cross()
+crossme_dll.dll_solve_f2l()
 </pre>
 
 output example:
 
 <pre>
-Rotate [White top, Green front]:
-  U2 F B' U R2 B' L' D2 F R2 B D2 F' L2 D2 B2 R2 D2 F' U' B
-
-[W = White; G = Green; R = Red; O = Orange; B = Blue; Y = Yellow]
-       R G B
-       W W O
-       O Y O
-
-Y B G  W R W  B Y R  Y O G
-G O W  R G O  W R W  G B Y
-R R G  Y B R  W B O  Y G W
-
-       O Y B
-       B Y O
-       G R B
+Rotate [Yellow top, Green front]:
+  D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2
 
 
-cross solutions after Z2: [Yellow top, Green front]:
-   length 5; F' D U L2 F' [0 seconds]
-   length 5; F' U D L2 F' [0 seconds]
-   length 6; B F' D2 F2 D' F2 [0 seconds]
-   length 6; B' F' U2 B2 D F2 [0 seconds]
-   length 6; F' B D2 F2 D' F2 [2 seconds]
-   length 6; F' B' U2 B2 D F2 [2 seconds]
-   length 6; F' D L2 U F' L2 [2 seconds]
-   ...
-   length 6; U2 F' U D L2 F' [6 seconds]
-combinations searched = 14645088; total time = 6 seconds
+cross solutions: [Yellow top, Green front]:
+   R  F  D  L  F  R
+
+14232088 combinations searched for 1 seconds
+F2L solutions: [Yellow top, Green front]:
+
+Solving pair:
+   D  B  U2 B' D'
+
+Solving pair:
+   U  R2 F2 R  F2 R
+
+Solving pair:
+   L  R' U' L' U  R
+
+Solving pair:
+   B' U2 R' U' R  U' B
+   
+225623761 combinations searched for 12 seconds
 </pre>
