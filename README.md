@@ -13,50 +13,35 @@ is_white_top = False
 
 crossme_dll = cdll.LoadLibrary('crossme.dll')
 crossme_dll.dll_init(is_white_top)
-crossme_dll.dll_rotate("B' L D2 B' L2 D2 F D2 L2 F' U2 L2 B2 D' L' D2 F R2 F U");
-crossme_dll.dll_print_cube()
+crossme_dll.dll_rotate("D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2");
 crossme_dll.dll_solve_cross()
+crossme_dll.dll_solve_f2l()
 </pre>
 
 output example:
 
 <pre>
 Rotate [Yellow top, Green front]:
-  B' L D2 B' L2 D2 F D2 L2 F' U2 L2 B2 D' L' D2 F R2 F U
-
-[W = White; G = Green; R = Red; O = Orange; B = Blue; Y = Yellow]
-       R B B
-       Y Y O
-       R B W
-
-W O G  Y R O  G G R  Y Y B
-O R O  B G R  Y O R  W B W
-G G W  O G R  G W O  Y R O
-
-       B W W
-       Y W B
-       Y G B
+  D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2
 
 
 cross solutions: [Yellow top, Green front]:
-length 5; B2 L' R' B' R2
-length 5; L' R  F  D2 F'
-length 5; B' R' B' L' R
-length 6; U' B' R' B' L' R
-length 5; R  L' F  D2 F'
-length 6; R2 B2 R  B' U2 L2
-length 6; U  B' R' B' L' R
-length 5; D2 L' F' R  D2
-length 6; U2 B' R' B' L' R
-length 6; R' B2 U2 R  B  L2
-length 6; F2 L' R  F  D2 F
-length 6; L2 R  L  F  D2 F'
-length 6; L  R  F  L2 B  D2
-length 6; B  R' B  L' R  B2
-length 6; F  R  F  L' D2 F2
-length 7; F' B' U2 F  R' B' L'
-length 7; D  B' L' B' D' L' R
-length 7; D' B2 F' R' D  L' R2
+   R  F  D  L  F  R
 
-9748436 combinations searched for 1 seconds
+14232088 combinations searched for 1 seconds
+F2L solutions: [Yellow top, Green front]:
+
+Solving pair:
+   D  B  U2 B' D'
+
+Solving pair:
+   U  R2 F2 R  F2 R
+
+Solving pair:
+   L  R' U' L' U  R
+
+Solving pair:
+   B' U2 R' U' R  U' B
+   
+225623761 combinations searched for 12 seconds
 </pre>
