@@ -7,7 +7,7 @@
 #include <windows.h>
 
 //#define DEBUG_MODE
-//#define SOLVE_WITH_THREADS
+#define SOLVE_WITH_THREADS
 
 #define CUBE_INIT_YELLOW_TOP (FALSE)
 #define CUBE_INIT_WHITE_TOP (TRUE)
@@ -19,6 +19,7 @@
 #define CROSS_MAX_SEARCH_DEPTH (8)
 
 #define MAX_SOLUTIONS_THREAD (1)
+#define MAX_ALLOWED_SOLUTIONS ((MAX_SOLUTIONS_THREAD) * (ARRAY_LENGTH))
 
 #define M_MIN(_val1_, _val2_) (((_val1_ )< (_val2_)) ? (_val1_)  : ( _val2_))
 #define M_MAX(_val1_, _val2_) (((_val1_ )> (_val2_)) ? (_val1_)  : ( _val2_))
@@ -168,7 +169,7 @@ typedef struct
 
    // Found solutions
    time_t start_solve_timestamp;
-   CubeRotation_t found_solutions[MAX_SOLUTIONS_THREAD];
+   CubeRotation_t found_solutions[MAX_ALLOWED_SOLUTIONS];
    int num_found_solutions;
    int nodes_searched;
 
@@ -180,6 +181,7 @@ typedef struct
 {
    Cube_t cube;
    int start_rotation;
+   int (*is_solved)(Cube_t*);
 } CubeThreadedSolution_t;
 
 // Cube rotation
@@ -200,10 +202,13 @@ static void print_orientation(Cube_t* cube_p);
 // Solving framework
 static void solve_cfop_part(Cube_t* cube_p, CubeRotation_t* base_solution_p, int(*is_solved)(Cube_t*));
 static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p, int max_depth, int(*is_solved)(Cube_t*));
+static void solve_with_threads(int(*is_solved)(Cube_t*));
+static int find_shortest_soluction(Cube_t* cube_p);
 
 // Cross
 static int is_cross_solved(Cube_t* cube_p);
-DWORD WINAPI threaded_solve_cross(LPVOID lpParam);
+DWORD WINAPI threaded_solve_part(LPVOID lpParam);
+DWORD WINAPI threaded_solve_f2l(LPVOID lpParam);
 
 // F2L
 static int map_solved_pairs(Cube_t* cube_p);
@@ -227,14 +232,15 @@ static void cube_assert(int condition);
 Cube_t DLL_Cube;
 __declspec(dllexport) void dll_init(int is_white_top);
 __declspec(dllexport) void dll_rotate(char* rotate_input_p);
-__declspec(dllexport) void dll_solve_cross(void);
+__declspec(dllexport) void dll_solve_cross(int apply_first_one);
 __declspec(dllexport) void dll_solve_f2l(void);
 __declspec(dllexport) void dll_print_cube(void);
 
 #ifdef SOLVE_WITH_THREADS
 CRITICAL_SECTION Critical_section;
-#define ENTER_CRITICAL_SECTION() EnterCriticalSection(&Critical_section);
-#define EXIT_CRITICAL_SECTION() LeaveCriticalSection(&Critical_section);
+int Is_critical_scrtion_active;
+#define ENTER_CRITICAL_SECTION() if (Is_critical_scrtion_active) {EnterCriticalSection(&Critical_section);}
+#define EXIT_CRITICAL_SECTION() if (Is_critical_scrtion_active) {LeaveCriticalSection(&Critical_section);}
 #else
 #define ENTER_CRITICAL_SECTION()
 #define EXIT_CRITICAL_SECTION()
@@ -245,8 +251,12 @@ int _tmain(int argc, _TCHAR* argv[])
    dll_init(CUBE_INIT_YELLOW_TOP);
    dll_rotate("B U D' R' F L' F D2 B U2 R2 F2 B2 U2 B2 U B2 L2 U2 R");
    dll_print_cube();
-   //dll_solve_cross();
-   dll_rotate("U2 B2 F R' D F");
+   dll_solve_cross(TRUE);
+   //dll_rotate("U2 B2 F R' D F");
+   
+   /*dll_rotate("U2 B U' B'");
+   dll_rotate("R' F2 R F2");
+   dll_rotate("L F' U F2 U2 F' L'");*/
    dll_solve_f2l();
 }
 
@@ -260,9 +270,9 @@ __declspec(dllexport) void dll_rotate(char* rotate_input_p)
    rotate_cube_string(&DLL_Cube, rotate_input_p, TRUE);
 }
 
-__declspec(dllexport) void dll_solve_cross(void)
+__declspec(dllexport) void dll_solve_cross(int apply_first_one)
 {
-   int total_nodes_searched;
+   int selected_solution;
 
    if (is_cross_solved(&DLL_Cube))
    {
@@ -275,54 +285,32 @@ __declspec(dllexport) void dll_solve_cross(void)
    printf("]:\n");
 
    time(&DLL_Cube.start_solve_timestamp);
+   DLL_Cube.nodes_searched = 0;
 
 #ifndef SOLVE_WITH_THREADS
    CubeRotation_t empty_solution = { 0 };
    solve_cfop_part(&DLL_Cube, &empty_solution, is_cross_solved);
-   total_nodes_searched = DLL_Cube.nodes_searched;
 #else
-   CubeThreadedSolution_t  thread_cubes[ARRAY_LENGTH];
-   int dwThreadIdArray[ARRAY_LENGTH];
-   HANDLE  thread_array[ARRAY_LENGTH];
-   static char rotations_array[] = { ROTATE_B, ROTATE_B_PRIME, ROTATE_B2, ROTATE_U, ROTATE_U_PRIME, ROTATE_U2, ROTATE_F, ROTATE_F_PRIME, ROTATE_F2, ROTATE_L, ROTATE_L_PRIME, ROTATE_L2, ROTATE_R, ROTATE_R_PRIME, ROTATE_R2, ROTATE_D, ROTATE_D_PRIME, ROTATE_D2 };
-   int did_init_cs;
-
-   did_init_cs = InitializeCriticalSectionAndSpinCount(&Critical_section, 0x00000400);
-   cube_assert(did_init_cs);
-
-   for (int i = 0; i < ARRAY_LENGTH; i++)
-   {
-      init_cube(&thread_cubes[i].cube, TRUE);
-      rotate_cube_array(&thread_cubes[i].cube, DLL_Cube.synced_rotation.solution_array, 0, DLL_Cube.synced_rotation.solution_depth);
-      thread_cubes[i].start_rotation = rotations_array[i];
-      time(&thread_cubes[i].cube.start_solve_timestamp);
-
-      thread_array[i] = CreateThread(NULL, 0, threaded_solve_cross, &thread_cubes[i], 0, &dwThreadIdArray[i]);
-      cube_assert(thread_array[i] != NULL);
-   } 
-
-   WaitForMultipleObjects(ARRAY_LENGTH, thread_array, TRUE, INFINITE);
-
-   // Close all thread handles and free memory allocations.
-   total_nodes_searched = 0;
-   for (int i = 0; i < ARRAY_LENGTH; i++)
-   {
-      total_nodes_searched += thread_cubes[i].cube.nodes_searched;
-      CloseHandle(thread_array[i]);
-   }
-
-   DeleteCriticalSection(&Critical_section);
+   solve_with_threads(is_cross_solved);
 #endif
+
+   if (apply_first_one)
+   {
+      cube_assert(DLL_Cube.num_found_solutions > 0);
+      selected_solution = find_shortest_soluction(&DLL_Cube);
+      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], FALSE);
+      rotate_cube_array(&DLL_Cube, DLL_Cube.found_solutions[selected_solution].solution_array, 0, DLL_Cube.found_solutions[selected_solution].solution_depth, TRUE);
+   }
 
    time_t total_time;
    time(&total_time);
-
-   printf("\n%d combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
+   printf("\n%d combinations searched for %d seconds", DLL_Cube.nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
 }
 
 __declspec(dllexport) void dll_solve_f2l(void)
 {
    int total_nodes_searched = 0;
+   int selected_solution;
 
    printf("\nF2L solutions: [");
    print_orientation(&DLL_Cube);
@@ -340,14 +328,21 @@ __declspec(dllexport) void dll_solve_f2l(void)
 
    while (!M_ARE_ALL_PAIRS_SOLVED(&DLL_Cube))
    {
-      printf("Solving pair:\n");
+      printf("\nSolving pair:\n");
 
       // Find solutions
+#ifndef SOLVE_WITH_THREADS
+      empty_solution.solution_depth = 0;
       solve_cfop_part(&DLL_Cube, &empty_solution, are_more_pairs_solved);
-      
+#else
+      solve_with_threads(are_more_pairs_solved);
+#endif
+
       // Apply
       cube_assert(DLL_Cube.num_found_solutions > 0);
-      rotate_cube_array(&DLL_Cube, DLL_Cube.found_solutions[0].solution_array, 0, DLL_Cube.found_solutions[0].solution_depth, TRUE);
+      selected_solution = find_shortest_soluction(&DLL_Cube);
+      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], FALSE);
+      rotate_cube_array(&DLL_Cube, DLL_Cube.found_solutions[selected_solution].solution_array, 0, DLL_Cube.found_solutions[selected_solution].solution_depth, TRUE);
       DLL_Cube.solved_pairs_bitmap = map_solved_pairs(&DLL_Cube);
 
       total_nodes_searched += DLL_Cube.nodes_searched;
@@ -357,6 +352,77 @@ __declspec(dllexport) void dll_solve_f2l(void)
    time(&total_time);
 
    printf("\n%d combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
+}
+
+static void solve_with_threads(int(*is_solved)(Cube_t*))
+{
+#ifdef SOLVE_WITH_THREADS
+   CubeThreadedSolution_t  thread_cubes[ARRAY_LENGTH];
+   int dwThreadIdArray[ARRAY_LENGTH];
+   HANDLE  thread_array[ARRAY_LENGTH];
+   static char rotations_array[] = { ROTATE_B, ROTATE_B_PRIME, ROTATE_B2, ROTATE_U, ROTATE_U_PRIME, ROTATE_U2, ROTATE_F, ROTATE_F_PRIME, ROTATE_F2, ROTATE_L, ROTATE_L_PRIME, ROTATE_L2, ROTATE_R, ROTATE_R_PRIME, ROTATE_R2, ROTATE_D, ROTATE_D_PRIME, ROTATE_D2 };
+   int did_init_cs;
+
+   did_init_cs = InitializeCriticalSectionAndSpinCount(&Critical_section, 0x00000400);
+   Is_critical_scrtion_active = TRUE;
+   cube_assert(did_init_cs);
+
+   for (int i = 0; i < ARRAY_LENGTH; i++)
+   {
+      init_cube(&thread_cubes[i].cube, TRUE);
+      rotate_cube_array(&thread_cubes[i].cube, DLL_Cube.synced_rotation.solution_array, 0, DLL_Cube.synced_rotation.solution_depth, FALSE);
+      thread_cubes[i].cube.solved_pairs_bitmap = map_solved_pairs(&thread_cubes[i].cube);
+      cube_assert(thread_cubes[i].cube.solved_pairs_bitmap == DLL_Cube.solved_pairs_bitmap);
+      thread_cubes[i].start_rotation = rotations_array[i];
+      thread_cubes[i].is_solved = is_solved;
+      time(&thread_cubes[i].cube.start_solve_timestamp);
+
+      thread_array[i] = CreateThread(NULL, 0, threaded_solve_part, &thread_cubes[i], 0, &dwThreadIdArray[i]);
+      cube_assert(thread_array[i] != NULL);
+   }
+
+   WaitForMultipleObjects(ARRAY_LENGTH, thread_array, TRUE, INFINITE);
+
+   // Close all thread handles and free memory allocations.
+   DLL_Cube.nodes_searched = 0;
+   DLL_Cube.num_found_solutions = 0;
+   for (int i = 0; i < ARRAY_LENGTH; i++)
+   {
+      DLL_Cube.nodes_searched += thread_cubes[i].cube.nodes_searched;
+
+      if (thread_cubes[i].cube.num_found_solutions > 0)
+      {
+         memcpy(&DLL_Cube.found_solutions[DLL_Cube.num_found_solutions], &thread_cubes[i].cube.found_solutions[0], sizeof(CubeRotation_t));
+         DLL_Cube.num_found_solutions++;
+         cube_assert(DLL_Cube.num_found_solutions <= MAX_ALLOWED_SOLUTIONS);
+      }
+
+      CloseHandle(thread_array[i]);
+   }
+
+   Is_critical_scrtion_active = FALSE;
+   DeleteCriticalSection(&Critical_section);
+#endif
+}
+
+static int find_shortest_soluction(Cube_t* cube_p)
+{
+   int result = -1;
+   int min_depth = CROSS_MAX_SEARCH_DEPTH + 1;
+   CubeRotation_t* solution_p;
+
+   solution_p = &cube_p->found_solutions[0];
+   for (int i = 0; i < cube_p->num_found_solutions; ++i, ++solution_p)
+   {
+      if (solution_p->solution_depth < min_depth)
+      {
+         min_depth = solution_p->solution_depth;
+         result = i;
+      }
+   }
+
+   cube_assert(result != -1);
+   return result;
 }
 
 static int map_solved_pairs(Cube_t* cube_p)
@@ -408,7 +474,7 @@ static int is_pair_solved(Cube_t* cube_p, int pair_corner)
    side_p = get_cube_side(cube_p, CUBE_SIDE_DOWN);
    if (side_p->color == COLOR_WHITE)
    {
-      paired_couple = -3;
+      paired_couple = 3;
    }
    else
    {
@@ -445,7 +511,7 @@ static int is_pair_solved(Cube_t* cube_p, int pair_corner)
 }
 
 
-DWORD WINAPI threaded_solve_cross(LPVOID lpParam)
+DWORD WINAPI threaded_solve_part(LPVOID lpParam)
 {
    CubeThreadedSolution_t* threaded_cube_p = (CubeThreadedSolution_t*)lpParam;
    CubeRotation_t base_solution;
@@ -453,7 +519,20 @@ DWORD WINAPI threaded_solve_cross(LPVOID lpParam)
    base_solution.solution_array[0] = threaded_cube_p->start_rotation;
    base_solution.solution_depth = 1;
 
-   solve_cfop_part(&threaded_cube_p->cube, &base_solution, is_cross_solved);
+   solve_cfop_part(&threaded_cube_p->cube, &base_solution, threaded_cube_p->is_solved);
+
+   return FALSE;
+}
+
+DWORD WINAPI threaded_solve_f2l(LPVOID lpParam)
+{
+   CubeThreadedSolution_t* threaded_cube_p = (CubeThreadedSolution_t*)lpParam;
+   CubeRotation_t base_solution;
+
+   base_solution.solution_array[0] = threaded_cube_p->start_rotation;
+   base_solution.solution_depth = 1;
+
+   solve_cfop_part(&threaded_cube_p->cube, &base_solution, are_more_pairs_solved);
 
    return FALSE;
 }
@@ -468,6 +547,7 @@ static void solve_cfop_part(Cube_t* cube_p, CubeRotation_t* base_solution_p, int
    int did_solve;
    int max_depth = CROSS_MAX_SEARCH_DEPTH;
 
+   cube_p->active_rotation.solution_depth = 0;
    cube_p->num_found_solutions = 0;
    for (int depth = 1; depth < max_depth; ++depth)
    {
@@ -505,7 +585,7 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
          cube_assert(cube_p->num_found_solutions < MAX_SOLUTIONS_THREAD);
          memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
          cube_p->num_found_solutions++;
-         print_solution(cube_p, base_solution_p, FALSE);
+         //print_solution(cube_p, base_solution_p, FALSE);
          return 1;
       }
 
@@ -565,11 +645,6 @@ void init_cube(Cube_t* cube_p, int is_white_top)
       init_cube_side(side_p, i);
    }
 
-   if (!is_white_top)
-   {
-      rotate_cube_string(cube_p, "Z2", FALSE);
-   }
-
    back_side_p = get_cube_side(cube_p, CUBE_SIDE_BACK);
    front_side_p = get_cube_side(cube_p, CUBE_SIDE_FRONT);
    left_side_p = get_cube_side(cube_p, CUBE_SIDE_LEFT);
@@ -613,6 +688,11 @@ void init_cube(Cube_t* cube_p, int is_white_top)
       dsticker_p = &down_side_p->stickers[0 + i * 3];
       lsticker_p = &left_side_p->stickers[8 - i];
       link_two_stickers(dsticker_p, down_side_p, lsticker_p, left_side_p);
+   }
+
+   if (!is_white_top)
+   {
+      rotate_cube_string(cube_p, "Z2", FALSE);
    }
 }
 
