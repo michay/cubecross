@@ -77,6 +77,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>false</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -87,6 +88,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -119,6 +121,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="crossme.c" />
+    <ClCompile Include="cube.c" />
+    <ClCompile Include="globals.c" />
+    <ClCompile Include="rotation.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cube.h" />
+    <ClInclude Include="globals.h" />
+    <ClInclude Include="solving.h" />
+    <ClInclude Include="rotation.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
