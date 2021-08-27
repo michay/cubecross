@@ -96,8 +96,8 @@ static void init_cube_side(CubeSide_t* side_p, int color)
    sticker_p = side_p->stickers;
    for (int i = 0; i < CUBE_SIZE * CUBE_SIZE; ++i, ++sticker_p)
    {
-      sticker_p->active.color = color;
-      sticker_p->active.unique_index = (color + 1) * 10 + i;
+      sticker_p->active.values.color = color;
+      sticker_p->active.values.unique_index = (color + 1) * 10 + i;
    }
 }
 
@@ -183,7 +183,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[up_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[up_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", up_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
@@ -197,7 +197,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[left_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[left_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", left_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
@@ -207,7 +207,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[front_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[front_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", front_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
@@ -217,7 +217,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[right_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[right_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", right_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
@@ -227,7 +227,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[back_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[back_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", back_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif
@@ -248,7 +248,7 @@ void print_cube(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE; ++j)
       {
 #ifndef DEBUG_MODE
-         printf("%c ", colors_hash[down_side_p->stickers[i * CUBE_SIZE + j].active.color]);
+         printf("%c ", colors_hash[down_side_p->stickers[i * CUBE_SIZE + j].active.values.color]);
 #else
          printf("%d ", down_side_p->stickers[i * CUBE_SIZE + j].active.unique_index);
 #endif

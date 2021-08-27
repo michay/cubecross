@@ -87,7 +87,7 @@ __declspec(dllexport) void dll_print_cube(void);
 int _tmain(int argc, _TCHAR* argv[])
 {
    dll_init(CUBE_INIT_YELLOW_TOP);
-   dll_rotate("D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2");
+   dll_rotate("F L R2 D' L2 U L2 U' F2 U B2 R2 D' L2 B U B2 R F' D2 B");
    dll_print_cube();
    dll_solve_cross();
    dll_solve_f2l();
@@ -323,7 +323,7 @@ static int is_pair_solved(Cube_t* cube_p, int pair_corner)
 
    sticker_p = &side_p->stickers[pairs_hash[pair_corner]];
    cube_assert(sticker_p->linked_stickers_count == 2);
-   if (sticker_p->active.color != side_p->color)
+   if (sticker_p->active.values.color != side_p->color)
    {
       result = FALSE;
    }
@@ -333,14 +333,14 @@ static int is_pair_solved(Cube_t* cube_p, int pair_corner)
       linked_sticker_p = &sticker_p->linked_stickers[i];
       linked_side_p = linked_sticker_p->connected_side_p;
 
-      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.color != linked_side_p->color)
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.values.color != linked_side_p->color)
       {
          result = FALSE;
          break;
       }
 
       cube_assert(0 <= linked_sticker_p->sticker_index + paired_couple && linked_sticker_p->sticker_index + paired_couple < (CUBE_SIZE * CUBE_SIZE));
-      if (linked_side_p->stickers[linked_sticker_p->sticker_index + paired_couple].active.color != linked_side_p->color)
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index + paired_couple].active.values.color != linked_side_p->color)
       {
          result = FALSE;
          break;
@@ -523,10 +523,10 @@ static void print_cube_links(Cube_t* cube_p)
       for (int j = 0; j < CUBE_SIZE*CUBE_SIZE; ++j)
       {
          Sticker_t* sticker_p = &cube_p->sides[i].stickers[j];
-         printf("%d: ", sticker_p->active.unique_index);
+         printf("%d: ", sticker_p->active.values.unique_index);
          
          for (int k = 0; k < sticker_p->linked_stickers_count; ++k)
-            printf("%d, ", sticker_p->linked_stickers[k].connected_side_p->stickers[sticker_p->linked_stickers[k].sticker_index].active.unique_index);
+            printf("%d, ", sticker_p->linked_stickers[k].connected_side_p->stickers[sticker_p->linked_stickers[k].sticker_index].active.values.unique_index);
 
          printf("\n");
       }
@@ -548,7 +548,7 @@ static int is_cross_solved(Cube_t* cube_p)
    {
       // Check same as center
       sticker_p = &side_p->stickers[cross_indices[i]];
-      if (sticker_p->active.color != side_p->color)
+      if (sticker_p->active.values.color != side_p->color)
       {
          result = FALSE;
          break;
@@ -558,7 +558,7 @@ static int is_cross_solved(Cube_t* cube_p)
       cube_assert(sticker_p->linked_stickers_count == 1);
       linked_sticker_p = &sticker_p->linked_stickers[0];
       linked_side_p = linked_sticker_p->connected_side_p;
-      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.color != linked_side_p->color)
+      if (linked_side_p->stickers[linked_sticker_p->sticker_index].active.values.color != linked_side_p->color)
       {
          result = FALSE;
          break;

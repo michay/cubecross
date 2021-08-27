@@ -44,10 +44,14 @@ typedef struct
    int sticker_index;
 } StickerLink_t;
 
-typedef struct
+typedef union
 {
-   int color;  // CubeColor_t
-   int unique_index;
+   struct
+   {
+      short color;
+      short unique_index;
+   } values;
+   int all;
 } StickerValues_t;
 
 typedef struct
@@ -56,7 +60,6 @@ typedef struct
    StickerValues_t previous;
    int timestamp;
 
-   int sticker_type;  //StickerType_t
    StickerLink_t linked_stickers[MAX_LINKED_STICKERS];
    int linked_stickers_count;
 } Sticker_t;
