@@ -62,6 +62,8 @@ typedef struct
 
    StickerLink_t linked_stickers[MAX_LINKED_STICKERS];
    int linked_stickers_count;
+
+   int fixed_index;
 } Sticker_t;
 
 typedef struct CubeSide_t
@@ -74,6 +76,9 @@ typedef struct
 {
    CubeSide_t sides[CUBE_SIDE_COUNT];
    int timestamp;
+
+   Sticker_t* fixed_stickers[CUBE_SIZE * CUBE_SIZE * CUBE_SIDE_COUNT];
+   
 
    CubeRotation_t synced_rotation; // last synced rotation
    CubeRotation_t active_rotation;  // rotation from last synced rotation

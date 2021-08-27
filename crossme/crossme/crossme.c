@@ -86,11 +86,20 @@ __declspec(dllexport) void dll_print_cube(void);
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+   //time_t t1, t2;
    dll_init(CUBE_INIT_YELLOW_TOP);
-   dll_rotate("F L R2 D' L2 U L2 U' F2 U B2 R2 D' L2 B U B2 R F' D2 B");
+   
+   dll_rotate("D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2");
+   //dll_rotate("B");
    dll_print_cube();
+
+   //dll_rotate("R  F  D  L  F  R");
+   //printf("%d", is_cross_solved(&DLL_Cube));
+
+   //dll_print_cube();
    dll_solve_cross();
-   dll_solve_f2l();
+   //dll_solve_f2l();
+   //dll_print_cube();
 }
 
 __declspec(dllexport) void dll_init(int is_white_top)
@@ -100,7 +109,7 @@ __declspec(dllexport) void dll_init(int is_white_top)
 
 __declspec(dllexport) void dll_rotate(char* rotate_input_p)
 {
-   rotate_cube_string(&DLL_Cube, rotate_input_p, TRUE);
+   rotate_cube_string(&DLL_Cube, rotate_input_p, TRUE, TRUE);
 }
 
 __declspec(dllexport) void dll_solve_cross(void)

@@ -58,9 +58,7 @@ typedef enum
 #define M_IS_AXIS_ROTATION(_rotation_) ((_rotation_) >= ROTATE_X)
 #define M_GET_AXIS_TO_ROTATE(_rotation_) (((_rotation_) - ROTATE_X) >> 2)
 
-void rotate_cube_single(Cube_t* cube_p, int rotation);
-void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise);
-void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print);
+void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print, int do_sync);
 void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count, int do_sync);
 void anti_rotate(Cube_t* cube_p, int rotation);
 void rotate_cube_axis(Cube_t* cube_p, int rotation);

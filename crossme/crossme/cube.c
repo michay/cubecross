@@ -22,18 +22,27 @@ void init_cube(Cube_t* cube_p, int is_white_top)
    Sticker_t* rsticker_p;
    Sticker_t* dsticker_p;
    int i;
+   int fixed_index;
 
    CubeSide_t* side_p;
 
    memset(cube_p, 0, sizeof(Cube_t));
 
    side_p = &cube_p->sides[0];
+   fixed_index = 0;
    for (i = 0; i < CUBE_SIDE_COUNT; ++i, ++side_p)
    {
       cube_p->sides_hash[i] = i;
 
       memset(side_p, 0, sizeof(CubeSide_t));
       init_cube_side(side_p, i);
+
+      for (int s = 0; s < CUBE_SIZE * CUBE_SIZE; ++s)
+      {
+         side_p->stickers[s].fixed_index = fixed_index;
+         cube_p->fixed_stickers[fixed_index] = &side_p->stickers[s];
+         fixed_index++;
+      }
    }
 
    back_side_p = get_cube_side(cube_p, CUBE_SIDE_BACK);
@@ -83,7 +92,7 @@ void init_cube(Cube_t* cube_p, int is_white_top)
 
    if (!is_white_top)
    {
-      rotate_cube_string(cube_p, "Z2", FALSE);
+      rotate_cube_string(cube_p, "Z2", FALSE, TRUE);
    }
 }
 

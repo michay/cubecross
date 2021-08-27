@@ -3,6 +3,10 @@
 #include "cube.h"
 #include "rotation.h"
 
+static void rotate_cube_single(Cube_t* cube_p, int rotation);
+static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise);
+static void rotate_cube_side_new(Cube_t* cube_p, int side, int is_clockwise);
+
 void rotate_cube_single(Cube_t* cube_p, int rotation)
 {
    int rotation_side;
@@ -22,12 +26,13 @@ void rotate_cube_single(Cube_t* cube_p, int rotation)
       rotation_side = cube_p->sides_hash[rotation_side];
       for (int i = 0; i < num_repeats; ++i)
       {
-         rotate_cube_side(cube_p, rotation_side, !is_anti_clockwise);
+         //rotate_cube_side(cube_p, rotation_side, !is_anti_clockwise);
+         rotate_cube_side_new(cube_p, rotation_side, !is_anti_clockwise);
       }
    }
 }
 
-void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
+static void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
 {
    CubeSide_t* side_p = &cube_p->sides[side];
    static int clockwise_position_array[] = { 6, 3, 0, 7, 4, 1, 8, 5, 2 };
@@ -53,6 +58,8 @@ void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
    {
       int copy_index = new_indices_array_p[i];
       side_p->stickers[i].previous.all = side_p->stickers[i].active.all;
+
+      printf("%d, %d\n", side_p->stickers[i].fixed_index, prev_stickers[copy_index].fixed_index);
 
       if (prev_stickers[copy_index].timestamp == cube_p->timestamp)
          side_p->stickers[i].active.all = prev_stickers[copy_index].previous.all;
@@ -83,6 +90,8 @@ void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
          else
             new_sticker_value_p = &prev_link_p->connected_side_p->stickers[prev_link_p->sticker_index].active;
 
+         printf("%d, %d\n", new_link_p->connected_side_p->stickers[new_link_p->sticker_index].fixed_index, prev_link_p->connected_side_p->stickers[prev_link_p->sticker_index].fixed_index);
+
          // Copy new value
          new_link_p->connected_side_p->stickers[new_link_p->sticker_index].active.all = new_sticker_value_p->all;
          new_link_p->connected_side_p->stickers[new_link_p->sticker_index].timestamp = cube_p->timestamp;
@@ -90,7 +99,48 @@ void rotate_cube_side(Cube_t* cube_p, int side, int is_clockwise)
    }
 }
 
-void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print)
+static void rotate_cube_side_new(Cube_t* cube_p, int side, int is_clockwise)
+{
+   static int rotate_array_b[][4] = { { 0, 6, 8, 2 }, { 1, 3, 7, 5 }, { 9, 38, 53, 33 }, { 27, 11, 44, 51 }, { 30, 10, 41, 52 } };
+   static int rotate_array_u[][4] = { { 9, 15, 17, 11 }, { 10, 12, 16, 14 }, { 0, 27, 18, 36 }, { 38, 2, 29, 20 }, { 37, 1, 28, 19 } };
+   static int rotate_array_f[][4] = { { 18, 24, 26, 20 }, { 19, 21, 25, 23 }, { 17, 29, 45, 42 }, { 36, 15, 35, 47 }, { 39, 16, 32, 46 } };
+   static int rotate_array_l[][4] = { { 27, 33, 35, 29 }, { 28, 30, 34, 32 }, { 18, 9, 8, 45 }, { 5, 48, 21, 12 }, { 24, 15, 2, 51 } };
+   static int rotate_array_r[][4] = { { 36, 42, 44, 38 }, { 37, 39, 43, 41 }, { 0, 17, 26, 53 }, { 11, 20, 47, 6 }, { 14, 23, 50, 3 } };
+   static int rotate_array_d[][4] = { { 45, 51, 53, 47 }, { 46, 48, 52, 50 }, { 26, 35, 8, 44 }, { 42, 24, 33, 6 }, { 43, 25, 34, 7 } };
+   static int(*rotation_array[])[4] = { rotate_array_b, rotate_array_u, rotate_array_f, rotate_array_l, rotate_array_r, rotate_array_d };
+   int (*rotation_array_p)[4] = rotation_array[side];
+   int prev_val;
+   int new_val;
+
+   if (is_clockwise)
+   {
+      for (int i = 0; i < 5; ++i)
+      {
+         prev_val = cube_p->fixed_stickers[rotation_array_p[i][0]]->active.all;
+         for (int j = 0; j < 3; ++j)
+         {
+            new_val = cube_p->fixed_stickers[rotation_array_p[i][j + 1]]->active.all;
+            cube_p->fixed_stickers[rotation_array_p[i][j]]->active.all = new_val;
+         }
+         cube_p->fixed_stickers[rotation_array_p[i][3]]->active.all = prev_val;
+      }
+   }
+   else
+   {
+      for (int i = 0; i < 5; ++i)
+      {
+         prev_val = cube_p->fixed_stickers[rotation_array_p[i][3]]->active.all;
+         for (int j = 0; j < 3; ++j)
+         {
+            new_val = cube_p->fixed_stickers[rotation_array_p[i][3 - j - 1]]->active.all;
+            cube_p->fixed_stickers[rotation_array_p[i][3 - j]]->active.all = new_val;
+         }
+         cube_p->fixed_stickers[rotation_array_p[i][0]]->active.all = prev_val;
+      }
+   }
+}
+
+void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print, int do_sync)
 {
    int rotation = -1;
    int is_new_rotation = TRUE;
@@ -111,9 +161,12 @@ void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print)
          {
             rotate_cube_single(cube_p, rotation);
 
-            cube_p->synced_rotation.solution_array[cube_p->synced_rotation.solution_depth] = rotation;
-            cube_p->synced_rotation.solution_depth++;
-            cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
+            if (do_sync)
+            {
+               cube_p->synced_rotation.solution_array[cube_p->synced_rotation.solution_depth] = rotation;
+               cube_p->synced_rotation.solution_depth++;
+               cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
+            }
 
             is_new_rotation = TRUE;
             rotation = -1;
@@ -143,9 +196,12 @@ void rotate_cube_string(Cube_t* cube_p, char* rotate_input_p, int do_print)
    cube_assert(rotation != -1);
    rotate_cube_single(cube_p, rotation);
 
-   cube_p->synced_rotation.solution_array[cube_p->synced_rotation.solution_depth] = rotation;
-   cube_p->synced_rotation.solution_depth++;
-   cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
+   if (do_sync)
+   {
+      cube_p->synced_rotation.solution_array[cube_p->synced_rotation.solution_depth] = rotation;
+      cube_p->synced_rotation.solution_depth++;
+      cube_assert(cube_p->synced_rotation.solution_depth < MAX_ROTATION_ARRAY);
+   }
 }
 
 void rotate_cube_array(Cube_t* cube_p, char* rotate_array, int start_offset, int rotations_count, int do_sync)
