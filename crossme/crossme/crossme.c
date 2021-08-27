@@ -462,6 +462,8 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
    int result = FALSE;
    int did_solve;
    char last_rotation;
+   int rotation_step;
+   int last_rotation_step;
 
    if (base_solution_p->solution_depth == max_depth)
    {
@@ -491,8 +493,18 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
    for (int i = 0; i < ARRAY_LENGTH; ++i)
    {
       // Skip same side rotations [for example -> R R']
-      if (M_GET_ROTATIONS_STEP(rotations_array[i]) == M_GET_ROTATIONS_STEP(last_rotation))
+      rotation_step = M_GET_ROTATIONS_STEP(rotations_array[i]);
+      last_rotation_step = M_GET_ROTATIONS_STEP(last_rotation);
+      if (rotation_step == last_rotation_step)
          continue;
+
+      if (rotation_step == M_GET_ROTATIONS_STEP(ROTATE_R) && last_rotation_step == M_GET_ROTATIONS_STEP(ROTATE_L))
+         continue;
+      if (rotation_step == M_GET_ROTATIONS_STEP(ROTATE_D) && last_rotation_step == M_GET_ROTATIONS_STEP(ROTATE_U))
+         continue;
+      if (rotation_step == M_GET_ROTATIONS_STEP(ROTATE_F) && last_rotation_step == M_GET_ROTATIONS_STEP(ROTATE_B))
+         continue;
+
 
       if (is_solved == are_more_pairs_solved)
       {
