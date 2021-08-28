@@ -28,20 +28,20 @@ Rotate [Yellow top, Green front]:
 cross solutions: [Yellow top, Green front]:
    R  F  D  L  F  R
 
-14232088 combinations searched for 1 seconds
+7340012 combinations searched for 0 seconds
+
 F2L solutions: [Yellow top, Green front]:
+Solving pair:
+   R2 B  L' B' R2 L  [Green/Orange]
 
 Solving pair:
-   D  B  U2 B' D'
+   U2 L' U' L  R' U' R  [Blue/Orange]
 
 Solving pair:
-   U  R2 F2 R  F2 R
+   B' U  B  [Blue/Red]
 
 Solving pair:
-   L  R' U' L' U  R
+   F  U' F' L' U' L  [Green/Red]
 
-Solving pair:
-   B' U2 R' U' R  U' B
-   
-225623761 combinations searched for 12 seconds
+25093993 combinations searched for 1 seconds
 </pre>
