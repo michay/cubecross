@@ -26,6 +26,13 @@ typedef enum
    PAIR_CORNER_COUNT
 } PairCorner_t;
 
+typedef enum
+{
+   PAIR_SOLVED_UNSOLVED = 0,
+   PAIR_SOLVED_NEW_PAIR_SOLVED,
+   PAIR_SOLVED_SAME_PAIR_SOLVED,
+} PairSolved_t;
+
 typedef struct
 {
    Cube_t cube;
@@ -90,15 +97,9 @@ int _tmain(int argc, _TCHAR* argv[])
    dll_init(CUBE_INIT_YELLOW_TOP);
    
    dll_rotate("D F' R2 F2 D2 R2 B2 D' L2 U2 L' F2 L B D2 L' D' B2");
-   //dll_rotate("B");
    dll_print_cube();
-
-   //dll_rotate("R  F  D  L  F  R");
-   //printf("%d", is_cross_solved(&DLL_Cube));
-
-   //dll_print_cube();
    dll_solve_cross();
-   //dll_solve_f2l();
+   dll_solve_f2l();
    //dll_print_cube();
 }
 
@@ -298,7 +299,7 @@ static int are_more_pairs_solved(Cube_t* cube_p)
 
    if (!is_cross_solved(cube_p))
    {
-      return FALSE;
+      return PAIR_SOLVED_UNSOLVED;
    }
 
    prev_solved_pairs = cube_p->solved_pairs_bitmap;
@@ -307,7 +308,12 @@ static int are_more_pairs_solved(Cube_t* cube_p)
    are_prev_still_solved = (prev_solved_pairs & current_solved_pairs) == prev_solved_pairs;
    are_new_pairs_solved = prev_solved_pairs != current_solved_pairs;
 
-   return are_prev_still_solved && are_new_pairs_solved;
+   if (are_prev_still_solved && are_new_pairs_solved)
+      return PAIR_SOLVED_NEW_PAIR_SOLVED;
+   else if (are_prev_still_solved)
+      return PAIR_SOLVED_SAME_PAIR_SOLVED;
+
+   return PAIR_SOLVED_UNSOLVED;
 }
 
 static int is_pair_solved(Cube_t* cube_p, int pair_corner)
@@ -460,18 +466,26 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
 {
    static char rotations_array[] = { ROTATE_B, ROTATE_B_PRIME, ROTATE_B2, ROTATE_U, ROTATE_U_PRIME, ROTATE_U2, ROTATE_F, ROTATE_F_PRIME, ROTATE_F2, ROTATE_L, ROTATE_L_PRIME, ROTATE_L2, ROTATE_R, ROTATE_R_PRIME, ROTATE_R2, ROTATE_D, ROTATE_D_PRIME, ROTATE_D2 };
    int result = FALSE;
-   int did_solve;
    char last_rotation;
    int rotation_step;
    int last_rotation_step;
+   int did_solve;
+   int is_f2l;
+   char f2l_next[4];
+   static char f2l_final[] = { ROTATE_L, ROTATE_L_PRIME, ROTATE_R, ROTATE_R_PRIME, ROTATE_F, ROTATE_F_PRIME, ROTATE_B, ROTATE_B_PRIME };
 
+   is_f2l = is_solved == are_more_pairs_solved;
    if (base_solution_p->solution_depth == max_depth)
    {
       rotate_between_rotations(cube_p, &cube_p->active_rotation, base_solution_p);
       memcpy(&cube_p->active_rotation, base_solution_p, sizeof(CubeRotation_t));
       cube_p->nodes_searched++;
       
-      if (is_solved(cube_p))
+      did_solve = is_solved(cube_p);
+      if (!did_solve)
+         return 0;
+
+      if (((is_f2l) && did_solve == PAIR_SOLVED_NEW_PAIR_SOLVED) || (!is_f2l && did_solve))
       {
          cube_assert(cube_p->num_found_solutions < MAX_SOLUTIONS_THREAD);
          memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
@@ -482,6 +496,62 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
          return 1;
       }
 
+      else
+      {
+         cube_assert(is_f2l && did_solve == PAIR_SOLVED_SAME_PAIR_SOLVED);
+         
+         for (int j = 0; j < sizeof(f2l_final); ++j)
+         {
+            f2l_next[0] = f2l_final[j];
+            f2l_next[1] = ROTATE_U;
+            f2l_next[2] = M_TOGGLE_PRIME_INDICATION(f2l_final[j]);
+            rotate_cube_array(cube_p, f2l_next, 0, 3, FALSE);
+            did_solve = is_solved(cube_p);
+            if (did_solve == PAIR_SOLVED_NEW_PAIR_SOLVED)
+            {
+               cube_assert(cube_p->num_found_solutions < MAX_SOLUTIONS_THREAD);
+               memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
+               
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth] = f2l_next[0];
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth + 1] = ROTATE_U;
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth + 2] = f2l_next[2];
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_depth += 3;
+               
+               cube_p->num_found_solutions++;
+#ifdef DEBUG_MODE
+               print_solution(cube_p, base_solution_p, TRUE);
+#endif
+               return 1;
+            }
+
+            f2l_next[1] = ROTATE_U2;
+            rotate_cube_array(cube_p, f2l_next, 0, 3, FALSE);
+            did_solve = is_solved(cube_p);
+            if (did_solve == PAIR_SOLVED_NEW_PAIR_SOLVED)
+            {
+               cube_assert(cube_p->num_found_solutions < MAX_SOLUTIONS_THREAD);
+               memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
+
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth] = f2l_next[0];
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth + 1] = ROTATE_U_PRIME;
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_array[cube_p->found_solutions[cube_p->num_found_solutions].solution_depth + 2] = f2l_next[2];
+               cube_p->found_solutions[cube_p->num_found_solutions].solution_depth += 3;
+
+               cube_p->num_found_solutions++;
+#ifdef DEBUG_MODE
+               print_solution(cube_p, base_solution_p, TRUE);
+#endif
+               return 1;
+            }
+
+            f2l_next[1] = ROTATE_U;
+            rotate_cube_array(cube_p, f2l_next, 0, 3, FALSE);
+         }
+         
+         return 0;
+      }
+
+      cube_assert(FALSE);
       return 0;
    }
 
@@ -506,7 +576,7 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
          continue;
 
 
-      if (is_solved == are_more_pairs_solved)
+      if (is_f2l)
       {
          if(M_GET_ROTATIONS_STEP(rotations_array[i]) == M_GET_ROTATIONS_STEP(ROTATE_D))
             continue;
