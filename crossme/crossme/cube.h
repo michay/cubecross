@@ -90,7 +90,7 @@ typedef struct
    time_t start_solve_timestamp;
    CubeRotation_t found_solutions[MAX_ALLOWED_SOLUTIONS];
    int num_found_solutions;
-   int nodes_searched;
+   long long nodes_searched;
 
    // F2L
    int solved_pairs_bitmap;

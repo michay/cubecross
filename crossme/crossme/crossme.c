@@ -33,6 +33,12 @@ typedef enum
    PAIR_SOLVED_SAME_PAIR_SOLVED,
 } PairSolved_t;
 
+typedef enum
+{
+   PRINT_NO_LINE_BREAK,
+   PRINT_ADD_LINE_BREAK,
+} PrintLineBreak_t;
+
 typedef struct
 {
    Cube_t cube;
@@ -142,18 +148,18 @@ __declspec(dllexport) void dll_solve_cross(void)
    {
       cube_assert(DLL_Cube.num_found_solutions > 0);
       selected_solution = find_shortest_soluction(&DLL_Cube);
-      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], TRUE);
+      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], PRINT_ADD_LINE_BREAK);
       rotate_cube_array(&DLL_Cube, DLL_Cube.found_solutions[selected_solution].solution_array, 0, DLL_Cube.found_solutions[selected_solution].solution_depth, TRUE);
    }
 
    time_t total_time;
    time(&total_time);
-   printf("\n%d combinations searched for %d seconds", DLL_Cube.nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
+   printf("\n%lld combinations searched for %d seconds", DLL_Cube.nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
 }
 
 __declspec(dllexport) void dll_solve_f2l(void)
 {
-   int total_nodes_searched = 0;
+   long long total_nodes_searched = 0;
    int selected_solution;
    int prev_solved_pairs;
 
@@ -191,7 +197,7 @@ __declspec(dllexport) void dll_solve_f2l(void)
       prev_solved_pairs = DLL_Cube.solved_pairs_bitmap;
       DLL_Cube.solved_pairs_bitmap = map_solved_pairs(&DLL_Cube);
 
-      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], FALSE);
+      print_solution(&DLL_Cube, &DLL_Cube.found_solutions[selected_solution], PRINT_NO_LINE_BREAK);
       print_solved_pairs(&DLL_Cube, DLL_Cube.solved_pairs_bitmap ^ prev_solved_pairs);
       printf("\n\n");
 
@@ -201,7 +207,7 @@ __declspec(dllexport) void dll_solve_f2l(void)
    time_t total_time;
    time(&total_time);
 
-   printf("\n%d combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
+   printf("\n%lld combinations searched for %d seconds", total_nodes_searched, total_time - DLL_Cube.start_solve_timestamp);
 }
 
 static void solve_with_threads(int(*is_solved)(Cube_t*))
@@ -217,6 +223,7 @@ static void solve_with_threads(int(*is_solved)(Cube_t*))
    Threaded_Solve.is_critical_scrtion_active = TRUE;
    cube_assert(did_init_cs);
 
+   Threaded_Solve.max_solve_depth = CROSS_MAX_SEARCH_DEPTH;
    for (int i = 0; i < ARRAY_LENGTH; i++)
    {
       init_cube(&thread_cubes[i].cube, TRUE);
@@ -259,12 +266,31 @@ static int find_shortest_soluction(Cube_t* cube_p)
 {
    int result = -1;
    int min_depth = CROSS_MAX_SEARCH_DEPTH + 1;
+   int max_pairs = 0;
    CubeRotation_t* solution_p;
+   int solved_pairs_map;
+   int solved_pairs_count;
+   CubeRotation_t empty_solution = { 0 };
 
    solution_p = &cube_p->found_solutions[0];
    for (int i = 0; i < cube_p->num_found_solutions; ++i, ++solution_p)
    {
-      if (solution_p->solution_depth < min_depth)
+      rotate_cube_array(cube_p, solution_p->solution_array, 0, solution_p->solution_depth, FALSE);
+      solved_pairs_count = 0;
+      solved_pairs_map = map_solved_pairs(cube_p);
+      for (int j = 0; j < PAIR_CORNER_COUNT; j++)
+      {
+         if (solved_pairs_map & (1 << j))
+            solved_pairs_count++;
+      }
+      rotate_between_rotations(cube_p, solution_p, &empty_solution);
+
+      if (solved_pairs_count > max_pairs)
+      {
+         max_pairs = solved_pairs_count;
+         result = i;
+      }
+      else if (solved_pairs_count == max_pairs && solution_p->solution_depth < min_depth)
       {
          min_depth = solution_p->solution_depth;
          result = i;
@@ -440,18 +466,19 @@ static void solve_cfop_part(Cube_t* cube_p, CubeRotation_t* base_solution_p, int
 {
    int did_solve;
 
-   Threaded_Solve.max_solve_depth = CROSS_MAX_SEARCH_DEPTH;
-
    cube_p->active_rotation.solution_depth = 0;
    cube_p->num_found_solutions = 0;
    for (int depth = 1; depth < Threaded_Solve.max_solve_depth; ++depth)
    {
       did_solve = solve_with_max_depth(cube_p, base_solution_p, depth, is_solved);
 
-      if (did_solve > 0)
+      ENTER_CRITICAL_SECTION();
+      if (depth > Threaded_Solve.max_solve_depth)
       {
-         Threaded_Solve.max_solve_depth = M_MIN(Threaded_Solve.max_solve_depth, depth);
+         EXIT_CRITICAL_SECTION();
+         break;
       }
+      EXIT_CRITICAL_SECTION();
 
       if (cube_p->num_found_solutions >= MAX_SOLUTIONS_THREAD)
       {
@@ -491,7 +518,7 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
          memcpy(&cube_p->found_solutions[cube_p->num_found_solutions], base_solution_p, sizeof(CubeRotation_t));
          cube_p->num_found_solutions++;
 #ifdef DEBUG_MODE
-         print_solution(cube_p, base_solution_p, TRUE);
+         print_solution(cube_p, base_solution_p, PRINT_ADD_LINE_BREAK);
 #endif
          return 1;
       }
@@ -519,7 +546,7 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
                
                cube_p->num_found_solutions++;
 #ifdef DEBUG_MODE
-               print_solution(cube_p, base_solution_p, TRUE);
+               print_solution(cube_p, base_solution_p, PRINT_ADD_LINE_BREAK);
 #endif
                return 1;
             }
@@ -539,7 +566,7 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
 
                cube_p->num_found_solutions++;
 #ifdef DEBUG_MODE
-               print_solution(cube_p, base_solution_p, TRUE);
+               print_solution(cube_p, base_solution_p, PRINT_ADD_LINE_BREAK);
 #endif
                return 1;
             }
@@ -587,15 +614,17 @@ static int solve_with_max_depth(Cube_t* cube_p, CubeRotation_t* base_solution_p,
          */
       }
 
-      if (max_depth > Threaded_Solve.max_solve_depth)
-      {
-         break;
-      }
-
       base_solution_p->solution_array[base_solution_p->solution_depth - 1] = rotations_array[i];
       did_solve = solve_with_max_depth(cube_p, base_solution_p, max_depth, is_solved);
       result = result || did_solve;
 
+      if (did_solve)
+      {
+         ENTER_CRITICAL_SECTION();
+         Threaded_Solve.max_solve_depth = M_MIN(Threaded_Solve.max_solve_depth, is_f2l ? max_depth : max_depth + 1);
+         EXIT_CRITICAL_SECTION();
+      }
+      
       if (cube_p->num_found_solutions >= MAX_SOLUTIONS_THREAD)
       {
          break;
@@ -741,7 +770,7 @@ static void print_solution(Cube_t* cube_p, CubeRotation_t* solution_p, int add_l
    for (int p = 0; p < padding-1; ++p)
       printf(" ");
 
-   if (add_line_break)
+   if (add_line_break == PRINT_ADD_LINE_BREAK)
       printf("\n");
 
    EXIT_CRITICAL_SECTION();
