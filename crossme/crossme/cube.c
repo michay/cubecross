@@ -113,12 +113,12 @@ static void init_cube_side(CubeSide_t* side_p, int color)
 static void link_two_stickers(Sticker_t* sticker1_p, CubeSide_t* side1_p, Sticker_t* sticker2_p, CubeSide_t* side2_p)
 {
    sticker1_p->linked_stickers[sticker1_p->linked_stickers_count].connected_side_p = side2_p;
-   sticker1_p->linked_stickers[sticker1_p->linked_stickers_count].sticker_index = sticker2_p - side2_p->stickers;
+   sticker1_p->linked_stickers[sticker1_p->linked_stickers_count].sticker_index = (int)(sticker2_p - side2_p->stickers);
    sticker1_p->linked_stickers_count++;
    cube_assert(sticker1_p->linked_stickers_count <= MAX_LINKED_STICKERS);
 
    sticker2_p->linked_stickers[sticker2_p->linked_stickers_count].connected_side_p = side1_p;
-   sticker2_p->linked_stickers[sticker2_p->linked_stickers_count].sticker_index = sticker1_p - side1_p->stickers;
+   sticker2_p->linked_stickers[sticker2_p->linked_stickers_count].sticker_index = (int)(sticker1_p - side1_p->stickers);
    sticker2_p->linked_stickers_count++;
    cube_assert(sticker2_p->linked_stickers_count <= MAX_LINKED_STICKERS);
 }

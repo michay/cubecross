@@ -6,8 +6,8 @@ def update_frame(frame):
    
    global crossme_dll
 
-   ww = len(frame)
-   hh = len(frame[0])
+   hh = len(frame)
+   ww = len(frame[0])
 
    crossme_dll.modify_frame(frame.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)), ww, hh)
    '''
