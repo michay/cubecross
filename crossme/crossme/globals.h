@@ -5,7 +5,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#define M_DIFF_ABS(_val_1_, _val_2_) ((_val_1_) > (_val_2_) ? ((_val_1_) - (_val_2_)) : ((_val_2_) > (_val_1_)))
+#define M_DIFF_ABS(_val_1_, _val_2_) ((_val_1_) > (_val_2_) ? ((_val_1_) - (_val_2_)) : ((_val_2_) - (_val_1_)))
 #define M_DIFF_NOABS(_val_1_, _val_2_) ((_val_1_) - (_val_2_))
 
 #define CROSS_MAX_SEARCH_DEPTH (13)

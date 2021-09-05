@@ -5,8 +5,8 @@
 #include "image_processing.h"
 
 #define NUM_KS (10)
-#define BOX_SIZE_X (16/4)
-#define BOX_SIZE_Y (16/4)
+#define BOX_SIZE_X (16/2)
+#define BOX_SIZE_Y (16/2)
 
 #define M_FRAME_XY_TO_INDEX(_height_, _xoffset_, _yoffset_) (((_yoffset_) * (_height_) + (_xoffset_)) * 3)
 
@@ -38,7 +38,7 @@ __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
 
    //median_filter(frame_p, width, height);
    kmeans(frame_p, width, height);
-   /*
+   //*
    for (int i = 0; i < width; i += BOX_SIZE_X)
    {
       for (int j = 0; j < height; j += BOX_SIZE_Y)
@@ -48,7 +48,8 @@ __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
          if (!should_keep_box)
             mark_frame_gray(frame_p, width, height, i, j);
       }
-   }*/
+   }
+   //*/
 
    return 0;
 }
@@ -79,7 +80,7 @@ static void kmeans(void* frame_p, int frame_width, int frame_height)
          k_positions[k].rgb[c] = frame_data[frame_index + c];
    }
 
-   for (int t = 0; t < 10 && centers_diff > 100; ++t)
+   for (int t = 0; t < 10 && centers_diff > 50; ++t)
    {
       for (int k = 0; k < NUM_KS; ++k)
       {
@@ -268,19 +269,19 @@ static int check_frame_box(void* frame_p, int frame_width, int frame_height, int
             frame_data[frame_index + 0] = 255;
             frame_data[frame_index + 1] = 0;
             frame_data[frame_index + 2] = 0;
-         }
-         else*/
+         }*/
+         /*else
          {
             frame_data[frame_index + 0] = total_r;
             frame_data[frame_index + 1] = total_g;
             frame_data[frame_index + 2] = total_b;
-         }
+         }*/
       }
    }
 
    //diff_from_avg /= (BOX_SIZE_X * BOX_SIZE_Y);
 
-   return diff_from_avg < 500000*100/4;
+   return diff_from_avg < 500*100;
 }
 
 static void mark_frame_gray(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset)
