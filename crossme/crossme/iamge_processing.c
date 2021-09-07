@@ -4,9 +4,11 @@
 #include "globals.h"
 #include "image_processing.h"
 
-#define NUM_KS (10)
+#define NUM_KS (8)
 #define BOX_SIZE_X (16/2)
 #define BOX_SIZE_Y (16/2)
+
+#define CENTER_SIZE (160)
 
 #define M_FRAME_XY_TO_INDEX(_height_, _xoffset_, _yoffset_) (((_yoffset_) * (_height_) + (_xoffset_)) * 3)
 
@@ -16,16 +18,19 @@ typedef struct
    unsigned char rfu0;
    long long total_rgb[3];
    int num_pixels;
+   int same_as;
 } KMeansCenter_t;
 
 
 static int check_frame_box(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset);
 static void mark_frame_gray(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset);
 
+static void create_frame(void* frame_p, int frame_width, int frame_height, int frame_size);
+
 static void median_filter(void* frame_p, int frame_width, int frame_height);
 static unsigned char get_median(void* frame_p, int frame_width, int frame_height, int x, int y, int rgb);
 
-static void kmeans(void* frame_p, int frame_width, int frame_height);
+static void kmeans(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset, int subframe_sizex, int subframe_sizey);
 static int kmeans_calc_distances(void* frame_p, int frame_width, int frame_height, int x, int y, KMeansCenter_t* kcenters_p, int* distances_p);
 
 static void insertion_sort(unsigned char arr[], int n);
@@ -36,9 +41,14 @@ __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
    int should_keep_box;
    //int distances[640][480][NUM_KS];
 
+   create_frame(frame_p, width, height, CENTER_SIZE);
+
    //median_filter(frame_p, width, height);
-   kmeans(frame_p, width, height);
-   //*
+   
+   kmeans(frame_p, width, height, (width - CENTER_SIZE) / 2, (height - CENTER_SIZE) / 2, CENTER_SIZE, CENTER_SIZE);
+   //kmeans(frame_p, width, height, 0, 0, width, height);
+   
+   /*
    for (int i = 0; i < width; i += BOX_SIZE_X)
    {
       for (int j = 0; j < height; j += BOX_SIZE_Y)
@@ -56,7 +66,7 @@ __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
 
 int* distances_p = NULL;
 
-static void kmeans(void* frame_p, int frame_width, int frame_height)
+static void kmeans(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset, int subframe_sizex, int subframe_sizey)
 {
    unsigned char* frame_data = (unsigned char*)frame_p;
    int frame_index;
@@ -72,10 +82,14 @@ static void kmeans(void* frame_p, int frame_width, int frame_height)
    raninit();
    for (int k = 0; k < NUM_KS; ++k)
    {
-      int centerx = random_generate(frame_width);
-      int centery = random_generate(frame_height);
+      /*
+      int centerx = random_generate(subframe_sizex);
+      int centery = random_generate(subframe_sizey);
+      */
+      int centerx = subframe_sizex / 3 * (k / 3) + subframe_sizex / 6;
+      int centery = subframe_sizey / 3 * (k % 3) + subframe_sizex / 6;
 
-      frame_index = M_FRAME_XY_TO_INDEX(frame_width, centerx, centery);
+      frame_index = M_FRAME_XY_TO_INDEX(frame_width, xoffset + centerx, yoffset + centery);
       for (int c = 0; c < 3; ++c)
          k_positions[k].rgb[c] = frame_data[frame_index + c];
    }
@@ -89,9 +103,9 @@ static void kmeans(void* frame_p, int frame_width, int frame_height)
             k_positions[k].total_rgb[c] = 0;
       }
 
-      for (int x = 0; x < frame_width; ++x)
+      for (int x = xoffset; x < xoffset + subframe_sizex; ++x)
       {
-         for (int y = 0; y < frame_height; ++y)
+         for (int y = yoffset; y < yoffset + subframe_sizey; ++y)
          {
             cube_assert((y*frame_height + x)*NUM_KS < 640 * 480 * NUM_KS);
             int min_k = kmeans_calc_distances(frame_p, frame_width, frame_height, x, y, k_positions, &distances_p[(y*frame_height + x)*NUM_KS]);
@@ -117,20 +131,46 @@ static void kmeans(void* frame_p, int frame_width, int frame_height)
       }
    }
 
+   for (int k = 0; k < NUM_KS; ++k)
+   {
+      k_positions[k].same_as = k;
+   }
+
+   for (int k = 0; k < NUM_KS; ++k)
+   {
+      for (int sk = k + 1; sk < NUM_KS; ++sk)
+      {
+         if (k_positions[sk].same_as != sk)
+            continue;
+
+         int dist = 0;
+         
+         dist += M_DIFF_ABS(k_positions[k].rgb[0], k_positions[sk].rgb[0]);
+         dist += M_DIFF_ABS(k_positions[k].rgb[1], k_positions[sk].rgb[1]);
+         dist += M_DIFF_ABS(k_positions[k].rgb[2], k_positions[sk].rgb[2]);
+         if (dist < 50)
+            k_positions[sk].same_as = k;
+      }
+   }
+
    static int rcolors[] = { 255, 0, 0, 255, 255, 0, 128, 128, 0, 0 };
    static int gcolors[] = { 0, 255, 0, 0, 255, 255, 128, 0, 128, 0};
    static int bcolors[] = { 0, 0, 255, 255, 0, 255, 128, 0, 0, 128 };
-   for (int x = 0; x < frame_width; ++x)
+   for (int x = xoffset; x < xoffset + subframe_sizex; ++x)
    {
-      for (int y = 0; y < frame_height; ++y)
+      for (int y = yoffset; y < yoffset + subframe_sizey; ++y)
       {
          frame_index = M_FRAME_XY_TO_INDEX(frame_width, x, y);
-         /*frame_data[frame_index + 0] = rcolors[labels[x][y]];
-         frame_data[frame_index + 1] = gcolors[labels[x][y]];
-         frame_data[frame_index + 2] = bcolors[labels[x][y]];*/
+         /*
+         frame_data[frame_index + 0] = rcolors[k_positions[labels[x][y]].same_as];
+         frame_data[frame_index + 1] = gcolors[k_positions[labels[x][y]].same_as];
+         frame_data[frame_index + 2] = bcolors[k_positions[labels[x][y]].same_as];
+         //*/
+         //*
          frame_data[frame_index + 0] = k_positions[labels[x][y]].rgb[0];
          frame_data[frame_index + 1] = k_positions[labels[x][y]].rgb[1];
          frame_data[frame_index + 2] = k_positions[labels[x][y]].rgb[2];
+         //*/
       }
    }
 }
@@ -305,6 +345,29 @@ static void mark_frame_gray(void* frame_p, int frame_width, int frame_height, in
    }
 }
 
+static void create_frame(void* frame_p, int frame_width, int frame_height, int frame_size)
+{
+   unsigned char* frame_data = (unsigned char*)frame_p;
+   int frame_index;
+   int xoffset = (frame_width - frame_size) / 2;
+   int yoffset = (frame_height - frame_size) / 2;
+
+   for (int i = 0; i < frame_size; ++i)
+   {
+      for (int x = 0; x < 4; ++x)
+      {
+         frame_index = M_FRAME_XY_TO_INDEX(frame_width, xoffset + i, yoffset + frame_size*x/3);
+         frame_data[frame_index + 0] = 255;
+         frame_data[frame_index + 1] = 0;
+         frame_data[frame_index + 2] = 0;
+
+         frame_index = M_FRAME_XY_TO_INDEX(frame_width, xoffset + frame_size*x/3, yoffset + i);
+         frame_data[frame_index + 0] = 255;
+         frame_data[frame_index + 1] = 0;
+         frame_data[frame_index + 2] = 0;
+      }
+   }
+}
 
 static void insertion_sort(unsigned char arr[], int n)
 {
