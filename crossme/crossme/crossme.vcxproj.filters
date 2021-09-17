@@ -27,7 +27,7 @@
     <ClCompile Include="cube.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="iamge_processing.c">
+    <ClCompile Include="image_processing.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
