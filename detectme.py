@@ -9,7 +9,8 @@ def update_frame(frame):
    hh = len(frame)
    ww = len(frame[0])
 
-   crossme_dll.modify_frame(frame.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)), ww, hh)
+   #crossme_dll.modify_frame(frame.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)), ww, hh)
+   crossme_dll.playground(frame.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)), ww, hh)
    '''
    func = crossme_dll.modify_frame
    func.argtypes = [ctypes.POINTER(ctypes.c_char), ctypes.c_uint, ctypes.c_uint]

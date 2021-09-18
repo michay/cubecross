@@ -120,6 +120,9 @@ static unsigned char* non_max_supp(void* grayscale_frame_p, int frame_width, int
 static unsigned char* apply_hysteresis(short* magnitude_p, unsigned char* non_max_suppression_p, int frame_width, int frame_height, int xoffset, int yoffset, int sizex, int sizey, float threshold_low, float threshold_high);
 static void follow_edges(unsigned char* edges_p, short* magnitude_p, int frame_width, short threshold_low);
 
+static void rotate_frame(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset, int sizex, int sizey, int angle);
+__inline unsigned char bilinear_interpolation(unsigned char* frame_p, int frame_width, float x, float y, int c);
+
 __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
 {
    unsigned char* frame_data = (unsigned char*)frame_p;
@@ -157,6 +160,8 @@ __declspec(dllexport) int modify_frame(void* frame_p, int width, int height)
 
 __declspec(dllexport) int playground(void* frame_p, int width, int height)
 {
+   rotate_frame(frame_p, width, height, 0, 0,width, height, 45);
+#if 0
    unsigned char* frame_data = (unsigned char*)frame_p;
    unsigned char* grayscale_frame_p;
    short* deltax_p;
@@ -183,10 +188,10 @@ __declspec(dllexport) int playground(void* frame_p, int width, int height)
    }
    
    //sigma:0.60-2.40; tlow: 0.20-0.50; thigh 0.60-0.90.
-   gaussian_filter(grayscale_frame_p, width, height, 0, 0, width, height, 2.1f);
+   gaussian_filter(grayscale_frame_p, width, height, 0, 0, width, height, 2.0f);
    magnitude_p = derrivative_x_y(grayscale_frame_p, width, height, 0, 0, width, height, &deltax_p, &deltay_p);
    non_max_sup_p = non_max_supp(grayscale_frame_p, width, height, 0, 0, width, height, deltax_p, deltay_p, magnitude_p);
-   edged_frame_p = apply_hysteresis(magnitude_p, non_max_sup_p, width, height, 0, 0, width, height, 0.2f, 0.6f);
+   edged_frame_p = apply_hysteresis(magnitude_p, non_max_sup_p, width, height, 0, 0, width, height, 0.2f, 0.8f);
 
    for (int x = 0; x < width; ++x)
    {
@@ -201,21 +206,27 @@ __declspec(dllexport) int playground(void* frame_p, int width, int height)
                frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = 255;
                */
 
+            //frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = (unsigned char)(magnitude_p[M_GRAYSCALE_FRAME_XY_TO_INDEX(width, x, y)] * 5);
+            //*
             if ((unsigned char)edged_frame_p[M_GRAYSCALE_FRAME_XY_TO_INDEX(width, x, y)] == EDGE)
-               frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = 255;// (unsigned char)edged_frame_p[M_GRAYSCALE_FRAME_XY_TO_INDEX(width, x, y)];
-            else
-               frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = 0;
+            {
+               //frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = //(unsigned char)(non_max_sup_p[M_GRAYSCALE_FRAME_XY_TO_INDEX(width, x, y)]);
+               frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = (c == RGB_RED) ? 255 : 0;
+            }
+            //else
+               //frame_data[M_FRAME_XY_TO_INDEX(width, x, y) + c] = 0;
+            //*/
          }
       }
    }
 
-   //free(deltax_p);
-   //free(deltay_p);
-   //free(magnitude_p);
+   free(deltax_p);
+   free(deltay_p);
+   free(magnitude_p);
    free(grayscale_frame_p);
-   //free(non_max_sup_p);
-   //free(edged_frame_p);
-
+   free(non_max_sup_p);
+   free(edged_frame_p);
+#endif
    return 0;
 }
 
@@ -1149,11 +1160,11 @@ static unsigned char* non_max_supp(void* grayscale_frame_p, int frame_width, int
 
    for (y = yoffset; y < yoffset + sizey; ++y)
    {
-      frame_index = M_GRAYSCALE_FRAME_XY_TO_INDEX(frame_width, x, y);
-      non_max_supp_p[frame_index] = 0;
+      frame_index = M_GRAYSCALE_FRAME_XY_TO_INDEX(frame_width, xoffset, y);
+      non_max_supp_p[frame_index] = NOEDGE;
 
-      frame_index = M_GRAYSCALE_FRAME_XY_TO_INDEX(frame_width, x + sizex - 1, y);
-      non_max_supp_p[frame_index] = 0;
+      frame_index = M_GRAYSCALE_FRAME_XY_TO_INDEX(frame_width, xoffset + sizex - 1, y);
+      non_max_supp_p[frame_index] = NOEDGE;
    }
 
    // suppress non-max points
@@ -1166,7 +1177,7 @@ static unsigned char* non_max_supp(void* grayscale_frame_p, int frame_width, int
          deltax_pixel = delta_x_p[frame_index];
          deltay_pixel = delta_y_p[frame_index];
 
-         if (magnitude_pixel == 0)
+         if (magnitude_pixel < 1)
          {
             non_max_supp_p[frame_index] = NOEDGE;
             continue;
@@ -1306,7 +1317,6 @@ static unsigned char* non_max_supp(void* grayscale_frame_p, int frame_width, int
       }
    }
 
-
    return non_max_supp_p;
 }
 
@@ -1355,8 +1365,8 @@ static unsigned char* apply_hysteresis(short* magnitude_p, unsigned char* non_ma
       num_edges += histogram[r];
    }
    
-   calculated_high_threshold = 3;// r;
-   calculated_low_threshold = 1; // (int)(calculated_high_threshold * threshold_low + 0.5);
+   calculated_high_threshold = r;
+   calculated_low_threshold = (int)(calculated_high_threshold * threshold_low + 0.5);
 
    for (x = xoffset; x < xoffset + sizex; ++x)
    {
@@ -1368,9 +1378,8 @@ static unsigned char* apply_hysteresis(short* magnitude_p, unsigned char* non_ma
          if (edges_p[frame_index] == POSSIBLE_EDGE && magnitude_pixel >= calculated_high_threshold)
          {
             edges_p[frame_index] = EDGE;
+            follow_edges(&edges_p[frame_index], &magnitude_p[frame_index], frame_width, calculated_low_threshold);
          }
-
-         follow_edges(edges_p, magnitude_p, frame_width, calculated_low_threshold);
       }
    }
 
@@ -1397,7 +1406,7 @@ static void follow_edges(unsigned char* edges_p, short* magnitude_p, int frame_w
    static int x[8] = { 1, 1, 0, -1, -1, -1, 0, 1 };
    static int y[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
 
-   for (int i = 0; i< 8; i++)
+   for (int i = 0; i < 8; i++)
    {
       edge_pixel_p = edges_p - y[i] * frame_width + x[i];
       magnitude_pixel_p = magnitude_p - y[i] * frame_width + x[i];
@@ -1408,4 +1417,72 @@ static void follow_edges(unsigned char* edges_p, short* magnitude_p, int frame_w
          follow_edges(edges_p, magnitude_p, frame_width, threshold_low);
       }
    }
+}
+
+static void rotate_frame(void* frame_p, int frame_width, int frame_height, int xoffset, int yoffset, int sizex, int sizey, int angle)
+{
+   unsigned char* frame_data = (unsigned char*)frame_p;
+   int frame_index;
+   int target_frame_index;
+   float sinx;
+   float cosx;
+   int center_x;
+   int center_y;
+   unsigned char* new_image_p;
+
+   new_image_p = (unsigned char*)malloc(frame_width * frame_height * 3);
+   memcpy(new_image_p, frame_p, frame_width * frame_height * 3);
+
+   sinx = sin(angle * 3.14 / 180);
+   cosx = cos(angle * 3.14 / 180);
+
+   center_x = xoffset + sizex / 2;
+   center_y = yoffset + sizey / 2;
+
+   for (int x = xoffset; x < xoffset + sizex; ++x)
+   {
+      for (int y = yoffset; y < yoffset + sizey; ++y)
+      {
+         frame_index = M_FRAME_XY_TO_INDEX(frame_width, x, y);
+
+         float x1 = cosx * (x - center_x) - sinx * (y - center_y) + center_x;
+         float y1 = sinx * (x - center_x) + cosx * (y - center_y) + center_y;
+         target_frame_index = M_FRAME_XY_TO_INDEX(frame_width, x1, y1);
+
+         if ((xoffset <= x1 && x1 < xoffset + sizex) && (yoffset <= y1 && y1 < yoffset + sizey))
+         {
+            for (int c = 0; c < 3; ++c)
+               new_image_p[frame_index + c] = bilinear_interpolation(frame_data, frame_width, x1, y1, c);
+         }
+         else
+         {
+            for (int c = 0; c < 3; ++c)
+                new_image_p[frame_index + c] = 191;
+         }
+      }
+   }
+
+   memcpy(frame_p, new_image_p, frame_width * frame_height * 3);
+   free(new_image_p);
+}
+
+__inline unsigned char bilinear_interpolation(unsigned char* frame_p, int frame_width, float x, float y, int c)
+{
+   int x0 = (int)x;
+   int y0 = (int)y;
+   int x1 = x0 + 1;
+   int y1 = y0 + 1;
+
+   float v0 = frame_p[M_FRAME_XY_TO_INDEX(frame_width, x0, y0) + c];
+   float v1 = frame_p[M_FRAME_XY_TO_INDEX(frame_width, x1, y0) + c];
+   float v2 = frame_p[M_FRAME_XY_TO_INDEX(frame_width, x0, y1) + c];
+   float v3 = frame_p[M_FRAME_XY_TO_INDEX(frame_width, x1, y1) + c];
+
+   float dx = x - (float)x0;
+   float dx1 = 1 - dx;
+   float vx0 = v1 * dx + v0 * dx1;
+   float vx1 = v3 * dx + v2 * dx1;
+
+   float dy = y - (float)y0;
+   return (unsigned char )(vx1 * dy + vx0 * (1 - dy));
 }
